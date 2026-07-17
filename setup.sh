@@ -10,6 +10,7 @@ DB_NAME="team2026"
 PORT=14445
 SETUP_FLAG="$SERVER_DIR/.setup_done"
 GH_RAW="https://raw.githubusercontent.com/akah3674-glitch/rem5/main/server"
+GH_DATA="https://github.com/akah3674-glitch/rem5/releases/download/v1.0/nro_data.tar.gz"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 info()    { echo -e "${CYAN}[INFO]${NC} $1"; }
@@ -61,25 +62,25 @@ start_server() {
   fi
   info "Khởi động MariaDB..."
   mysqld_safe --user=root &>/dev/null &
-  sleep 3
+  sleep 4
   info "Khởi động game server..."
   cd "$SERVER_DIR"
-  nohup java -jar NgocRongOnline.jar > "$SERVER_DIR/server.log" 2>&1 &
+  nohup java -jar NgocRongOnline.jar </dev/null >"$SERVER_DIR/server.log" 2>&1 &
   echo $! > "$SERVER_DIR/server.pid"
-  sleep 3
+  sleep 5
   if pgrep -f "NgocRongOnline.jar" > /dev/null; then
     ok "Server đã khởi động! PID: $(cat $SERVER_DIR/server.pid)"
+    LOCAL_IP=$(get_local_ip)
+    echo -e "  → Nhập vào game: IP ${YELLOW}$LOCAL_IP${NC}  Port ${YELLOW}$PORT${NC}"
   else
-    err "Server không khởi động được - kiểm tra log: tail -50 $SERVER_DIR/server.log"
+    err "Server không khởi động được"
+    err "Kiểm tra log: tail -50 $SERVER_DIR/server.log"
   fi
 }
 
 stop_server() {
-  if [ -f "$SERVER_DIR/server.pid" ]; then
-    kill $(cat "$SERVER_DIR/server.pid") 2>/dev/null
-    rm -f "$SERVER_DIR/server.pid"
-  fi
   pkill -f "NgocRongOnline.jar" 2>/dev/null
+  rm -f "$SERVER_DIR/server.pid"
   ok "Đã dừng server"
 }
 
@@ -109,7 +110,6 @@ show_connect_info() {
 }
 
 dl() {
-  # dl <url> <dest>
   curl -fsSL --max-redirs 10 --retry 3 -o "$2" "$1"
 }
 
@@ -130,22 +130,21 @@ echo ""
 info "Bước 1/5: Cài packages..."
 pkg update -y 2>/dev/null | tail -1
 pkg install -y openjdk-17 mariadb curl wget 2>/dev/null | tail -3
-ok "Packages đã cài (không cần unrar nữa)"
+ok "Packages đã cài"
 
 # Bước 2: Tạo thư mục
 info "Bước 2/5: Tạo thư mục server..."
-mkdir -p "$SERVER_DIR/lib"
-mkdir -p "$HOME/Downloads"
+mkdir -p "$SERVER_DIR/lib" "$SERVER_DIR/data" "$HOME/Downloads"
 ok "Thư mục: $SERVER_DIR"
 
 # Bước 3: Tải file server từ GitHub
-info "Bước 3/5: Tải server files từ GitHub (~8MB)..."
+info "Bước 3/5: Tải server files từ GitHub..."
 
-info "  NgocRongOnline.jar..."
+info "  NgocRongOnline.jar (1.7MB)..."
 dl "$GH_RAW/NgocRongOnline.jar" "$SERVER_DIR/NgocRongOnline.jar"
-ok "  NgocRongOnline.jar ($(du -sh $SERVER_DIR/NgocRongOnline.jar | cut -f1))"
+ok "  NgocRongOnline.jar OK"
 
-info "  Thư viện (lib)..."
+info "  Thư viện (lib ~6MB)..."
 LIBS=(
   apache-commons-lang.jar
   bson-5.1.3.jar
@@ -155,7 +154,7 @@ LIBS=(
   json-simple-1.1.jar
   log4j-1.2.17.jar
   lombok.jar
-  mysql-connector-java-5.1.49.jar
+  mysql-connector-java8-5.1.23.jar
   slf4j-api-2.0.0-alpha1.jar
   slf4j-simple-2.0.0-alpha1.jar
 )
@@ -164,16 +163,15 @@ for lib in "${LIBS[@]}"; do
 done
 ok "  Libs: $(ls $SERVER_DIR/lib/*.jar | wc -l) files"
 
-info "  Database SQL..."
+info "  Database SQL (1MB)..."
 dl "$GH_RAW/database_team2026.sql" "$SERVER_DIR/team2026.sql"
-ok "  SQL: $(du -sh $SERVER_DIR/team2026.sql | cut -f1)"
+ok "  SQL OK"
 
-info "  Game data (map/update_data/effdata)..."
-dl "https://github.com/akah3674-glitch/rem5/releases/download/v1.0/nro_data.tar.gz" \
-   "$SERVER_DIR/nro_data.tar.gz"
-tar -xzf "$SERVER_DIR/nro_data.tar.gz" -C "$SERVER_DIR/"
+info "  Game data - map/update_data/effdata (156KB)..."
+dl "$GH_DATA" "$SERVER_DIR/nro_data.tar.gz"
+tar -xzf "$SERVER_DIR/nro_data.tar.gz" -C "$SERVER_DIR/data/"
 rm -f "$SERVER_DIR/nro_data.tar.gz"
-ok "  Game data OK ($(ls $SERVER_DIR/data/ | wc -l) folders)"
+ok "  Game data OK: $(ls $SERVER_DIR/data/)"
 
 # Bước 4: Cấu hình
 info "Bước 4/5: Cấu hình server..."
@@ -197,7 +195,7 @@ server.expserver=3
 
 #DATABASE
 database.driver=com.mysql.jdbc.Driver
-database.host=localhost
+database.host=127.0.0.1
 database.port=3306
 database.name=$DB_NAME
 database.user=root
@@ -206,33 +204,36 @@ database.min=1
 database.max=5
 database.lifetime=120000
 EOF
-ok "Config.properties đã tạo với IP: $LOCAL_IP"
+ok "Config.properties OK (IP: $LOCAL_IP)"
 
-# Bước 5: Setup MariaDB
+# Bước 5: Setup MariaDB + import SQL
 info "Bước 5/5: Setup MariaDB..."
 mysql_install_db --user=root 2>/dev/null | tail -2 || true
 mysqld_safe --user=root &>/dev/null &
-sleep 5
-ok "MariaDB khởi động"
+info "  Chờ MariaDB khởi động..."
+for i in $(seq 1 20); do
+  sleep 1
+  mysqladmin -u root ping 2>/dev/null | grep -q alive && break
+done
+ok "MariaDB OK"
 
-mysql -u root 2>/dev/null << SQLEOF || true
+mysql -u root 2>/dev/null << SQLEOF
 CREATE DATABASE IF NOT EXISTS $DB_NAME CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 FLUSH PRIVILEGES;
 SQLEOF
 
-info "Import SQL database (~1MB)..."
+info "  Import database (~1MB)..."
 mysql -u root "$DB_NAME" < "$SERVER_DIR/team2026.sql" 2>/dev/null \
-  && ok "SQL import OK" \
-  || warn "SQL import gặp lỗi nhỏ, có thể vẫn OK"
+  && ok "  Import OK" \
+  || warn "  Import có warning nhỏ (thường vẫn OK)"
 
 ok "MariaDB: DB '$DB_NAME' sẵn sàng"
 
 # Tải APK
 info "Tải APK mod về Downloads (~84MB)..."
 APK_URL="https://drive.usercontent.google.com/download?id=${APK_ID}&export=download&authuser=0&confirm=t"
-APK_FILE="$HOME/Downloads/ChuBeRong_mod.apk"
-curl -L --max-redirs 15 -C - "$APK_URL" -o "$APK_FILE" --progress-bar 2>/dev/null
-ok "APK lưu tại: $APK_FILE"
+curl -L --max-redirs 15 -C - "$APK_URL" -o "$HOME/Downloads/ChuBeRong_mod.apk" --progress-bar 2>/dev/null
+ok "APK: $HOME/Downloads/ChuBeRong_mod.apk"
 
 # Start/Stop scripts
 cat > "$SERVER_DIR/start.sh" << 'STARTEOF'
@@ -240,10 +241,16 @@ cat > "$SERVER_DIR/start.sh" << 'STARTEOF'
 cd ~/nro-chuberong
 mysqld_safe --user=root &>/dev/null &
 sleep 4
-nohup java -jar NgocRongOnline.jar > ~/nro-chuberong/server.log 2>&1 &
+nohup java -jar NgocRongOnline.jar </dev/null >~/nro-chuberong/server.log 2>&1 &
 echo $! > ~/nro-chuberong/server.pid
-echo "[OK] Server khởi động! PID: $(cat ~/nro-chuberong/server.pid)"
-echo "[INFO] Xem log: tail -f ~/nro-chuberong/server.log"
+sleep 5
+if pgrep -f "NgocRongOnline.jar" > /dev/null; then
+  echo -e "\033[0;32m[OK]\033[0m Server khởi động! PID: $(cat ~/nro-chuberong/server.pid)"
+  echo "[INFO] Xem log: tail -f ~/nro-chuberong/server.log"
+else
+  echo -e "\033[0;31m[ERR]\033[0m Server không khởi động - xem log:"
+  tail -20 ~/nro-chuberong/server.log
+fi
 STARTEOF
 
 cat > "$SERVER_DIR/stop.sh" << 'STOPEOF'
@@ -254,8 +261,6 @@ echo "[OK] Đã dừng server"
 STOPEOF
 
 chmod +x "$SERVER_DIR/start.sh" "$SERVER_DIR/stop.sh"
-
-# Đánh dấu setup xong
 touch "$SETUP_FLAG"
 
 echo ""
@@ -265,11 +270,8 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "  IP server: ${YELLOW}$LOCAL_IP${NC}  |  Port: ${YELLOW}$PORT${NC}"
 echo ""
-echo -e "  Khởi động server: ${CYAN}bash ~/nro-chuberong/start.sh${NC}"
-echo -e "  Hoặc chạy lại script để vào menu:"
+echo -e "  Chạy lại script để vào menu quản lý:"
 echo -e "  ${CYAN}curl -fsSL https://raw.githubusercontent.com/akah3674-glitch/rem5/main/setup.sh | bash${NC}"
-echo ""
-echo -e "  Trong game → Nhập IP: ${YELLOW}$LOCAL_IP${NC}  Port: ${YELLOW}$PORT${NC}"
 echo ""
 
 start_server
