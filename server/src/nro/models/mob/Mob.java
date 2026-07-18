@@ -62,6 +62,10 @@ public class Mob {
     public long lastTimePhucHoi = System.currentTimeMillis();
     public long lastTimeSendEffect = System.currentTimeMillis();
 
+    // Vị trí spawn gốc — dùng để reset khi hồi sinh
+    public short startX;
+    public short startY;
+
     public Mob(Mob mob) {
         this.point = new MobPoint(this);
         this.effectSkill = new MobEffectSkill(this);
@@ -73,6 +77,8 @@ public class Mob {
         this.point.sethp(this.point.getHpFull());
         this.location.x = mob.location.x;
         this.location.y = mob.location.y;
+        this.startX = mob.startX;
+        this.startY = mob.startY;
         this.pDame = mob.pDame;
         this.pTiemNang = mob.pTiemNang;
         this.type = mob.type;
@@ -464,6 +470,9 @@ public class Mob {
         this.status = 5;
         this.point.hp = this.point.maxHp;
         this.setTiemNang();
+        // Reset về vị trí spawn gốc để quái không drift sau khi di chuyển
+        this.location.x = this.startX;
+        this.location.y = this.startY;
     }
 
     public int lvMob() {

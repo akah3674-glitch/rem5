@@ -201,6 +201,8 @@ public class Map implements Runnable {
                 mob.point.setHpFull(mobHp[i]);
                 mob.location.x = mobX[i];
                 mob.location.y = mobY[i];
+                mob.startX = mobX[i];
+                mob.startY = mobY[i];
                 mob.point.sethp(mob.point.getHpFull());
                 mob.pDame = temp.percentDame;
                 mob.pTiemNang = temp.percentTiemNang;
