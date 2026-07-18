@@ -841,7 +841,11 @@ public class Player implements Runnable {
         if (effectSkill != null && effectSkill.isHalloween) {
             return idOutfitHalloween[effectSkill.idOutfitHalloween][this.gender][0];
         }
-        if (effectSkill != null && effectSkill.isMonkey) {
+        if (effectSkill != null && effectSkill.isBienHinh && effectSkill.levelBienHinh > 0) {
+            int lvl = Math.min(effectSkill.levelBienHinh, 5) - 1;
+            int nc = Math.min(this.gender, 2);
+            return ConstPlayer.OUTFIT_BIEN_HINH[nc][lvl][0];
+        } else if (effectSkill != null && effectSkill.isMonkey) {
             return (short) ConstPlayer.HEADMONKEY[effectSkill.levelMonkey - 1];
         } else if (effectSkill != null && effectSkill.isSocola) {
             return 412;
@@ -896,7 +900,11 @@ public class Player implements Runnable {
         if (effectSkill != null && effectSkill.isHalloween) {
             return idOutfitHalloween[effectSkill.idOutfitHalloween][this.gender][1];
         }
-        if (effectSkill != null && effectSkill.isMonkey) {
+        if (effectSkill != null && effectSkill.isBienHinh && effectSkill.levelBienHinh > 0) {
+            int lvl = Math.min(effectSkill.levelBienHinh, 5) - 1;
+            int nc = Math.min(this.gender, 2);
+            return ConstPlayer.OUTFIT_BIEN_HINH[nc][lvl][1];
+        } else if (effectSkill != null && effectSkill.isMonkey) {
             return 193;
         } else if (effectSkill != null && effectSkill.isSocola) {
             return 413;
@@ -956,7 +964,11 @@ public class Player implements Runnable {
         if (effectSkill != null && effectSkill.isHalloween) {
             return idOutfitHalloween[effectSkill.idOutfitHalloween][this.gender][2];
         }
-        if (effectSkill != null && effectSkill.isMonkey) {
+        if (effectSkill != null && effectSkill.isBienHinh && effectSkill.levelBienHinh > 0) {
+            int lvl = Math.min(effectSkill.levelBienHinh, 5) - 1;
+            int nc = Math.min(this.gender, 2);
+            return ConstPlayer.OUTFIT_BIEN_HINH[nc][lvl][2];
+        } else if (effectSkill != null && effectSkill.isMonkey) {
             return 194;
         } else if (effectSkill != null && effectSkill.isSocola) {
             return 414;

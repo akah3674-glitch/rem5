@@ -283,6 +283,24 @@ public class EffectSkillService {
         }
     }
 
+    public void setBienHinh(Player player) {
+        if (player.effectSkill == null) return;
+        player.effectSkill.isBienHinh = true;
+        player.effectSkill.levelBienHinh = (byte) Math.max(1, Math.min(player.playerSkill.skillSelect.point, 5));
+        player.effectSkill.lastTimeBienHinh = System.currentTimeMillis();
+        player.effectSkill.timeBienHinh = 30000 + player.playerSkill.skillSelect.point * 5000;
+        Service.gI().Send_Caitrang(player);
+        Service.gI().Send_Info_NV(player);
+    }
+
+    public void bienHinhDown(Player player) {
+        if (player.effectSkill == null) return;
+        player.effectSkill.isBienHinh = false;
+        player.effectSkill.levelBienHinh = 0;
+        Service.gI().Send_Caitrang(player);
+        Service.gI().Send_Info_NV(player);
+    }
+
     public void BinhDown(Player player) {
         if (player.effectSkill != null) {
             player.effectSkill.isBinh = false;

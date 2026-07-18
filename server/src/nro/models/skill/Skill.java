@@ -42,6 +42,8 @@ public class Skill {
     public static final byte SUPER_KAME = 24;
     public static final byte LIEN_HOAN_CHUONG = 25;
     public static final byte MA_PHONG_BA = 26;
+    public static final byte BIEN_HINH = 27;
+    public static final byte PHAN_THAN = 28;
 
     public SkillTemplate template;
 

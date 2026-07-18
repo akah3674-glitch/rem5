@@ -122,6 +122,18 @@ public class EffectSkill {
     public long lastTimeUseSkillMonkey;
     public int timeUseSkillMonkey;
 
+    //Biến Hình (skill 27) — transform skin
+    public boolean isBienHinh;
+    public byte levelBienHinh;
+    public long lastTimeBienHinh;
+    public int timeBienHinh;
+
+    //Phân Thân (skill 28) — clone effect
+    public boolean isPhanThan;
+    public byte levelPhanThan;
+    public long lastTimePhanThan;
+    public int timePhanThan;
+
     //Intrinsic
     public boolean isIntrinsic;
     public long lastTimeUseSkill;
@@ -187,6 +199,12 @@ public class EffectSkill {
     public void update() {
         if (isMonkey && (Util.canDoWithTime(lastTimeUpMonkey, timeMonkey))) {
             EffectSkillService.gI().monkeyDown(player);
+        }
+        if (isBienHinh && (Util.canDoWithTime(lastTimeBienHinh, timeBienHinh))) {
+            EffectSkillService.gI().bienHinhDown(player);
+        }
+        if (isPhanThan && (Util.canDoWithTime(lastTimePhanThan, timePhanThan))) {
+            player.effectSkill.isPhanThan = false;
         }
         if (isBinh && (Util.canDoWithTime(lastTimeUpBinh, timeBinh))) {
             EffectSkillService.gI().BinhDown(player);

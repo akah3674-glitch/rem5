@@ -547,6 +547,20 @@ public class SkillService {
                 }
                 affterUseSkill(player, player.playerSkill.skillSelect.template.id);
                 break;
+            case Skill.BIEN_HINH:
+                // Đổi skin biến hình dựa theo cấp + nclass
+                EffectSkillService.gI().setBienHinh(player);
+                affterUseSkill(player, player.playerSkill.skillSelect.template.id);
+                break;
+            case Skill.PHAN_THAN:
+                // Hiệu ứng phân thân — gửi effect cho người xung quanh
+                Service.gI().sendEffAllPlayer(player, 284, 1, -1, -1);
+                player.effectSkill.isPhanThan = true;
+                player.effectSkill.levelPhanThan = (byte) player.playerSkill.skillSelect.point;
+                player.effectSkill.lastTimePhanThan = System.currentTimeMillis();
+                player.effectSkill.timePhanThan = 15000 + player.playerSkill.skillSelect.point * 3000;
+                affterUseSkill(player, player.playerSkill.skillSelect.template.id);
+                break;
             case Skill.TROI:
                 EffectSkillService.gI().sendEffectUseSkill(player, Skill.TROI);
                 int timeHold = SkillUtil.getTimeTroi(player.playerSkill.skillSelect.point);
