@@ -2159,7 +2159,14 @@ remotePort = $RP
 EOF
 sed -i "s|server.sv1=.*|server.sv1=NRO:$FH::$RP|" ~/nro/SRC/Config.properties 2>/dev/null
 pkill -f frpc 2>/dev/null; sleep 2
-nohup /tmp/frp_0.61.0_linux_amd64/frpc -c /tmp/frpc_nro.toml >> ~/logs/frp.log 2>&1 &
+# Tải lại frpc nếu /tmp bị xóa (Codespace restart)
+if [ ! -f "/tmp/frp/frpc" ]; then
+  mkdir -p /tmp/frp
+  curl -sL "https://github.com/fatedier/frp/releases/download/v0.61.0/frp_0.61.0_linux_amd64.tar.gz" \
+    -o /tmp/frp.tar.gz && tar xzf /tmp/frp.tar.gz -C /tmp/frp --strip-components=1
+  chmod +x /tmp/frp/frpc
+fi
+nohup /tmp/frp/frpc -c /tmp/frpc_nro.toml >> ~/logs/frp.log 2>&1 &
 sleep 3
 pgrep -f frpc >/dev/null && echo "frpc OK: $FH:$RP ($FR)" || echo "frpc FAIL"
 REMOTE2
