@@ -65,6 +65,18 @@ description: Tiến trình phân tích và tích hợp Teamobi2026 vào NRO SRC-
 - Compile chain quan trọng: MiniGame → LyTieuNuong → NpcFactory (LyTieuNuong chưa có trong JAR)
 - Server load: shop(33), npc_template(94) ✅
 
+## Phase 19 — Bug fix 4 lỗi sau Skill 27+28 ✅ XONG (2026-07-18)
+
+| Lỗi | Nguyên nhân | Fix |
+|---|---|---|
+| Quái sai vị trí | `hoiSinh()` không reset vị trí về spawn gốc | Thêm `startX/startY` vào Mob.java; reset trong `hoiSinh()` |
+| Icon quá to | Cùng gốc bug icon Phân Thân | Fix icon → tự giải quyết |
+| Phân Thân dùng icon nhân vật | `skill_template id=28` icon_id sai | SQL: `UPDATE skill_template SET icon_id=3784 WHERE id=28` |
+| Biến Hình icon SRC-Team | `skill_template id=27` dùng icon_id=718 (SRC-Team image) | SQL: `UPDATE skill_template SET icon_id=3783 WHERE id=27` |
+
+**Files thay đổi:** `server/src/nro/models/mob/Mob.java`, `server/src/nro/models/map/Map.java`
+**Deploy script:** `bash scripts/deploy.sh` — tự động copy → compile → JAR → restart
+
 ## Còn lại (ưu tiên thấp)
 - Cleanup Map.java dead scheduler (332 idle threads, không ảnh hưởng gameplay)
 - Test failover sang 3 Codespace dự phòng
