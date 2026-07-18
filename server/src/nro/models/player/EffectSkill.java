@@ -194,6 +194,12 @@ public class EffectSkill {
         if (isDameBuff) {
             EffectSkillService.gI().removeDameBuff(this.player);
         }
+        if (isBienHinh) {
+            EffectSkillService.gI().bienHinhDown(player);
+        }
+        if (isPhanThan) {
+            isPhanThan = false;
+        }
     }
 
     public void update() {
