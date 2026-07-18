@@ -42,15 +42,10 @@ public class Zone {
     public int maxPlayer;
     public int shenronType = -1;
 
-    @Getter
     private final List<Player> nonInteractiveNPCs; //npc
-    @Getter
     private final List<Player> humanoids; //player, boss, pet
-    @Getter
     private final List<Player> notBosses; //player, pet
-    @Getter
     public final List<Player> players; //player
-    @Getter
     private final List<Player> bosses; //boss
     private final List<Player> pets; //pet
 
@@ -75,14 +70,17 @@ public class Zone {
     public List<TrapMap> trapMaps;
     public List<MaBuHold> maBuHolds;
 
-    @Getter
     public Player Npc;
     public int mapId;
 
-    /** Manual setter vì Lombok @Setter không hoạt động khi compile với -proc:none */
-    public void setNpc(Player npc) {
-        this.Npc = npc;
-    }
+    // ---- Manual getters/setters (Lombok không hoạt động với -proc:none) ----
+    public List<Player> getNonInteractiveNPCs() { return nonInteractiveNPCs; }
+    public List<Player> getHumanoids()          { return humanoids; }
+    public List<Player> getNotBosses()          { return notBosses; }
+    public List<Player> getPlayers()            { return players; }
+    public Player getNpc()                      { return Npc; }
+    public void setNpc(Player npc)              { this.Npc = npc; }
+
     private int nextMobId = 1000;
 
     public boolean isFullPlayer() {
