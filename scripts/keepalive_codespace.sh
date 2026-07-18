@@ -1874,6 +1874,228 @@ REMOTE
   log "[$NAME] ✅ Phase 14 xong! Mobs đã về gốc."
 }
 
+# Phase 15: FIX Map.java — xóa random spawn offset (mobs bay trên trời)
+run_fix_map_spawn() {
+  local CS=$(echo "$1" | cut -d'|' -f1)
+  local TOKEN_VAR=$(echo "$1" | cut -d'|' -f2)
+  local NAME=$(echo "$1" | cut -d'|' -f3)
+
+  [ -f "/tmp/nro_fix_map_spawn_done" ] && return 0
+  log "[$NAME] 🔧 Phase 15: Fix Map.java spawn offset (mobs đứng đúng chỗ)..."
+  auth_as "$TOKEN_VAR"
+
+  $GH_BIN codespace ssh -c "$CS" -- bash -s 2>/dev/null << 'REMOTE'
+echo "======== PHASE 15: FIX MAP.JAVA SPAWN OFFSET ========"
+MAP=~/nro/SRC/src/nro/models/map/Map.java
+
+echo "=== Kiểm tra random offset hiện tại ==="
+grep -n "Math.random\|0\.5.*96\|0\.5.*80" $MAP | head -10
+
+HAS_RANDOM=$(grep -c "Math.random" $MAP 2>/dev/null || echo 0)
+echo "Random offset count: $HAS_RANDOM"
+
+if [ "$HAS_RANDOM" -gt "0" ]; then
+  echo "=== XÓA random offset ==="
+  python3 << 'PYEOF'
+import re
+
+path = '/home/codespace/nro/SRC/src/nro/models/map/Map.java'
+with open(path, 'r', encoding='utf-8') as f:
+    src = f.read()
+
+original = src
+
+# Xóa random offset khi load từ DB
+src = re.sub(
+    r'mob\.location\.x = \(short\)\(mobX\[i\] \+ \(int\)\(\(Math\.random\(\)-0\.5\)\*\d+\)\);',
+    'mob.location.x = mobX[i];', src)
+src = re.sub(
+    r'mob\.location\.y = \(short\)\(mobY\[i\] \+ \(int\)\(\(Math\.random\(\)-0\.5\)\*\d+\)\);',
+    'mob.location.y = mobY[i];', src)
+
+# Xóa random offset khi clone sang zone
+src = re.sub(
+    r'mobZone\.location\.x \+= \(short\)\(\(Math\.random\(\)-0\.5\)\*\d+\);\s*\n\s*mobZone\.location\.y \+= \(short\)\(\(Math\.random\(\)-0\.5\)\*\d+\);',
+    '', src)
+
+# Xóa random offset trong initMob(List<Mob>)
+src = re.sub(
+    r'mob\.location\.x \+= \(short\)\(\(Math\.random\(\)-0\.5\)\*\d+\);\s*\n\s*mob\.location\.y \+= \(short\)\(\(Math\.random\(\)-0\.5\)\*\d+\);',
+    '', src)
+
+if src != original:
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(src)
+    print("Map.java PATCHED — random offset đã xóa ✅")
+else:
+    print("Không tìm thấy pattern cần xóa (đã sạch hoặc format khác)")
+PYEOF
+
+  # Compile Map.java
+  echo "=== Compile Map.java ==="
+  cd ~/nro/SRC
+  OUT=/tmp/out_p15
+  mkdir -p $OUT
+  javac -cp "NgocRongOnline.jar:lib/*" -d $OUT \
+    src/nro/models/map/Map.java 2>&1
+  COMPILE_STATUS=$?
+  echo "Compile: $COMPILE_STATUS"
+
+  if [ $COMPILE_STATUS -eq 0 ]; then
+    jar uf NgocRongOnline.jar -C $OUT nro/
+    echo "JAR updated ✅"
+    # Restart server
+    pkill -9 -f NgocRongOnline 2>/dev/null; sleep 3
+    nohup java -Xms512m -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=30 \
+      -XX:G1HeapRegionSize=4m -XX:+ParallelRefProcEnabled \
+      -XX:InitiatingHeapOccupancyPercent=35 -XX:+DisableExplicitGC \
+      -jar NgocRongOnline.jar >> ~/logs/server.log 2>&1 &
+    sleep 10
+    echo "Server PID: $(pgrep -f NgocRongOnline | head -1)"
+    tail -3 ~/logs/server.log
+  fi
+else
+  echo "Map.java sạch — không cần sửa ✅"
+fi
+
+echo "======== END PHASE 15 ========"
+REMOTE
+
+  touch "/tmp/nro_fix_map_spawn_done"
+  log "[$NAME] ✅ Phase 15 xong! Map.java spawn offset đã fix."
+}
+
+# Phase 16: Nhập cải trang + vật phẩm mới từ Teamobi2026
+run_new_content() {
+  local CS=$(echo "$1" | cut -d'|' -f1)
+  local TOKEN_VAR=$(echo "$1" | cut -d'|' -f2)
+  local NAME=$(echo "$1" | cut -d'|' -f3)
+
+  [ -f "/tmp/nro_new_content_done" ] && return 0
+  log "[$NAME] 🎭 Phase 16: Nhập cải trang + vật phẩm mới từ Teamobi2026..."
+  auth_as "$TOKEN_VAR"
+
+  $GH_BIN codespace ssh -c "$CS" -- bash -s 2>/dev/null << 'REMOTE'
+echo "======== PHASE 16: CẢI TRANG + VẬT PHẨM MỚI ========"
+REPO=/workspaces/rem5
+
+# Cập nhật repo
+if [ -d "$REPO" ]; then
+  cd $REPO
+  git pull origin main 2>&1 | tail -3
+else
+  echo "REPO $REPO không tồn tại — bỏ qua Phase 16"
+  exit 0
+fi
+
+echo "=== 1. Kiểm tra cai_trang hiện tại ==="
+COUNT=$(mysql -u root nro1 -se "SELECT COUNT(*) FROM cai_trang;" 2>/dev/null || echo "-1")
+echo "Cải trang hiện tại: $COUNT bộ"
+
+if [ "$COUNT" = "-1" ] || [ "$COUNT" = "0" ]; then
+  echo "=== Tạo bảng cai_trang + nhập 351 bộ cải trang ==="
+  python3 << 'PYEOF'
+import re, subprocess
+
+src = open('/workspaces/rem5/docs/nro_upgrade_data.sql', encoding='utf-8').read()
+
+# Lấy phần cai_trang
+m = re.search(r'(DROP TABLE IF EXISTS `cai_trang`.*?INSERT INTO `cai_trang`.*?;)', src, re.DOTALL)
+if not m:
+    print("WARN: Không tìm thấy section cai_trang trong nro_upgrade_data.sql")
+    exit(0)
+
+sql = "SET NAMES utf8mb4;\n" + m.group(1)
+# Ghi ra file tạm
+with open('/tmp/cai_trang_import.sql', 'w', encoding='utf-8') as f:
+    f.write(sql)
+
+r = subprocess.run(['mysql', '-u', 'root', 'nro1'], input=sql.encode(), capture_output=True)
+if r.returncode == 0:
+    print("cai_trang imported OK ✅")
+else:
+    print(f"WARN: {r.stderr.decode()[:200]}")
+PYEOF
+else
+  echo "Cải trang đã có $COUNT bộ — bỏ qua CREATE"
+fi
+
+echo "=== 2. Kiểm tra số item hiện tại ==="
+ITEM_COUNT=$(mysql -u root nro1 -se "SELECT COUNT(*) FROM item_template;" 2>/dev/null || echo "0")
+echo "Items hiện tại: $ITEM_COUNT"
+
+echo "=== 3. INSERT IGNORE items mới từ Teamobi2026 ==="
+python3 << 'PYEOF'
+import re, subprocess, json
+
+TEAM_SQL  = '/workspaces/rem5/server/database_team2026.sql'
+
+# Đọc Teamobi2026 items
+content = open(TEAM_SQL, encoding='utf-8').read()
+# Lấy toàn bộ phần INSERT INTO item_template của Teamobi2026
+m = re.search(r'INSERT INTO `item_template` \(`id`, `TYPE`, `gender`, `NAME`, `description`, `level`, `icon_id`, `part`, `is_up_to_up`, `power_require`, `gold`, `gem`, `head`, `body`, `leg`\) VALUES(.*?);', content, re.DOTALL)
+if not m:
+    print("WARN: Không tìm thấy item_template trong database_team2026.sql")
+    exit(0)
+
+rows_text = m.group(1).strip()
+# Lấy ID hiện tại trong DB
+r = subprocess.run(['mysql', '-u', 'root', 'nro1', '-se', 'SELECT id FROM item_template;'],
+                   capture_output=True, text=True)
+existing_ids = set(r.stdout.strip().split('\n')) if r.stdout.strip() else set()
+print(f"DB hiện có {len(existing_ids)} items")
+
+# Parse từng row
+row_pattern = re.compile(r'\((\d+),\s*(\d+),\s*(-?\d+),\s*(\'[^\']*\'|\"[^\"]*\"),\s*(\'[^\']*\'|\"[^\"]*\"),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\)')
+rows = row_pattern.findall(rows_text)
+print(f"Teamobi2026 items parsed: {len(rows)}")
+
+new_rows = [r for r in rows if r[0] not in existing_ids]
+print(f"Items chưa có trong DB: {len(new_rows)}")
+
+if not new_rows:
+    print("Không có item mới cần thêm.")
+    exit(0)
+
+# Tạo INSERT IGNORE SQL theo batch 100
+batch_sql = "SET NAMES utf8mb4;\n"
+batch_sql += "INSERT IGNORE INTO `item_template` (`id`,`TYPE`,`gender`,`NAME`,`description`,`level`,`icon_id`,`part`,`is_up_to_up`,`power_require`,`gold`,`gem`,`head`,`body`,`leg`) VALUES\n"
+vals = []
+for row in new_rows:
+    id_,typ,gen,name,desc,lv,icon,part,utu,pw,gold,gem,head,body,leg = row
+    vals.append(f"({id_},{typ},{gen},{name},{desc},{lv},{icon},{part},{utu},{pw},{gold},{gem},{head},{body},{leg})")
+
+batch_sql += ",\n".join(vals) + ";\n"
+
+r2 = subprocess.run(['mysql', '-u', 'root', 'nro1'], input=batch_sql.encode(), capture_output=True)
+if r2.returncode == 0:
+    print(f"✅ Đã INSERT IGNORE {len(new_rows)} items mới")
+else:
+    print(f"WARN: {r2.stderr.decode()[:300]}")
+PYEOF
+
+echo "=== 4. Xác nhận kết quả ==="
+mysql -u root nro1 -se "SELECT COUNT(*) as total_items FROM item_template;" 2>/dev/null
+mysql -u root nro1 -se "SELECT COUNT(*) as total_cai_trang FROM cai_trang;" 2>/dev/null
+
+echo "=== 5. Restart server để load dữ liệu mới ==="
+pkill -9 -f NgocRongOnline 2>/dev/null; sleep 3
+cd ~/nro/SRC
+nohup java -Xms512m -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=30 \
+  -XX:G1HeapRegionSize=4m -XX:+ParallelRefProcEnabled \
+  -XX:InitiatingHeapOccupancyPercent=35 -XX:+DisableExplicitGC \
+  -jar NgocRongOnline.jar >> ~/logs/server.log 2>&1 &
+sleep 10
+echo "Server PID: $(pgrep -f NgocRongOnline | head -1)"
+tail -3 ~/logs/server.log
+
+echo "======== END PHASE 16 ========"
+REMOTE
+
+  touch "/tmp/nro_new_content_done"
+  log "[$NAME] ✅ Phase 16 xong! Cải trang + vật phẩm mới đã nhập."
+}
+
 # Thử upgrade tunnel sang server châu Á nếu hiện tại là US
 try_upgrade_tunnel() {
   local CS=$(echo "$1" | cut -d'|' -f1)
@@ -2046,6 +2268,10 @@ while true; do
       run_teamobi_upgrade "$(get_active)"
       # Phase 14: Revert map mobs + mob stats về gốc
       run_revert_mobs "$(get_active)"
+      # Phase 15: Fix Map.java spawn offset (mobs bay trên trời)
+      run_fix_map_spawn "$(get_active)"
+      # Phase 16: Cải trang + vật phẩm mới từ Teamobi2026
+      run_new_content "$(get_active)"
       # Sau loop thứ 3 (~60 phút): thử upgrade tunnel
       [ "$LOOP" -ge 3 ] && try_upgrade_tunnel "$(get_active)"
     else
