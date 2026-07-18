@@ -1,0 +1,70 @@
+Cần điều chỉnh như sau thứ nhất thiết kế lại icon trong skill phân thân thứ hai skill phân thân phải chỉnh sửa bản chính đánh quái nào đánh nhân vật nào đánh boss nào tức là nhân vật chính làm gì thì nhân vật phân thân làm y như vậy kể cả sử dụng các skill thứ ba cũng làm tương tự icon cho việc biến hình và phần biến hình cần phải làm như sau phải hiện biểu tượng thời gian biến hình cho điều kiện thời gian biến hình là 10 phút và phải hiện ở trên màn hình giống khi ăn item bổ huyết điều chỉnh icon khác thiết icon đẹp
+
+Cần đọc thêm 3 thứ trước khi code: cách skill icon được định nghĩa, cách ItemTimeService.sendItemTime hoạt động, và cách SkillService xử lý attack để mirror cho clone. Đọc song song:
+
+Tiếp tục đọc song song các thứ cần thiết:
+
+Đọc song song các thứ cần thiết để thiết kế icon + mirror attack + timer:
+
+Cần đọc thêm: SQL skill 27/28, và useSkillAttack hook point:
+
+Cần đọc thêm: SQL upgrade (nơi skill 27/28 được INSERT), và playerAttackMob hook point:
+
+Đọc song song các thứ còn cần:
+
+Tìm skill_template trực tiếp từ Codespace DB và implement mirror attack:
+
+Query DB trên Codespace + đọc cuối useSkillAttack song song:
+
+Đủ thông tin rồi. Implement song song: mirror attack + Biến Hình 10min timer + icon DB update + PhanThanClone refactor:
+
+Đủ thông tin. Thực hiện tất cả thay đổi song song ngay:
+
+Thấy rõ vấn đề: Phân Thân đang dùng icon 3779 giống hệt Trói — cần đổi ngay. Implement tất cả song song:
+
+Tiếp tục — thêm mirrorClonesAttack vào SkillService + update DB icon song song:
+
+Push và deploy lên Codespace:
+
+Upload và compile các file đã thay đổi lên Codespace:
+
+Server chạy thành công (PID 52630). Tóm tắt tất cả thay đổi trong session này:
+
+✅ Biến Hình (Skill 27)
+Thay đổi	Chi tiết
+Icon mới	Tất cả chủng tộc → icon 11191 (cùng series với Super Kame, Ma Phong Ba)
+Timer 10 phút	Hiện trên màn hình giống ăn item bổ huyết — biểu tượng "Cải trang" đếm ngược 600 giây
+Stat boost	Cấp 1: +15%/+10% → Cấp 5: +75%/+50% tấn công/phòng thủ
+Thông báo	Hiện cấp + % boost khi kích hoạt
+✅ Phân Thân (Skill 28)
+Thay đổi	Chi tiết
+Icon mới	Đổi từ 3779 (trùng với Trói!) → 11190 (icon riêng biệt)
+Gương chiếu master	Khi master đánh mob/player/boss nào → tất cả clone đánh đúng mục tiêu đó với dame tương ứng
+Số clone	Cấp 1=2, Cấp 5=10 clone; sức mạnh 20%→90%
+Idle fallback	Khi master đứng yên, clone tự tìm mob gần nhất trong 350px
+Cleanup tự động	Hết giờ hoặc master chết → clone tan biến
+Lưu ý về icon: 11190 và 11191 nằm trong cùng series với các skill cao cấp của game (11162 Super Kame, 11193 Cađíc, 11194 Ma Phong Ba). Nếu icon hiện ra không đúng ý, bạn cho biết số icon muốn dùng và tôi update DB ngay.
+
+Về phần npc và trang phục vẫn và các item hiện vẫn chưa có chưa thấy xuất hiện trong các map hãy khắc phục luôn điều này, cho kill liên hoàn chưởng, các skill đặc biệt của các hành tinh khi sử dụng lâu hiwn bắt chưởng ra nhiều hơn
+
+Cần khám phá 3 vấn đề cùng lúc: NPC/trang phục/item chưa spawn, Liên Hoàn Chưởng kill, và skill đặc biệt hành tinh. Đọc song song:
+
+Tiếp tục đọc song song để hiểu cả 3 vấn đề:
+
+Đọc song song: Map.java (NPC load), updateSkillSpecial (skill logic), và cai_trang DB:
+
+Cần đọc thêm: phần NPC load trong Map.java, updateSkillSpecial đầy đủ, và cai_trang loading:
+
+Tiếp tục đọc parallel: MapTemplate parsing (NPC JSON), cai_trang load, và initItem logic:
+
+Đọc thêm song song: Manager.java (map/NPC parsing), initItem, và npc_template structure:
+
+Đọc thêm song song: upgrade SQL (items/NPC mới), updateSkillSpecial đầy đủ, và ConstNpc:
+
+Thấy rõ vấn đề - server log có IndexOutOfBoundsException và NoSuchElementException. Đọc song song upgrade SQL + NpcFactory + skill special:
+
+Tìm rõ vấn đề: NPCs format 4 phần tử, cai_trang chưa có shop, skill multi-hit. Đọc song song những gì còn cần:
+
+Đọc thêm phần cần thiết để implement chính xác:
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
