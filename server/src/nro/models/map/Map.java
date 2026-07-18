@@ -54,7 +54,7 @@ public class Map implements Runnable {
     public static final byte T_EMPTY = 0;
     public static final byte T_TOP = 2;
     private static final int SIZE = 24;
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     public final List<BotAttackplayer> bots = new ArrayList<>();
     public List<Player> players = new ArrayList<>();
 
@@ -186,7 +186,7 @@ public class Map implements Runnable {
             } catch (Exception e) {
                 Logger.logException(Map.class, e, "Lỗi update map " + this.mapName);
             }
-        }, 0, 5000, TimeUnit.MILLISECONDS);  // Cập nhật mỗi 1 giây
+        }, 0, 100, TimeUnit.MILLISECONDS);  // Cập nhật mỗi 0.1 giây
     }
 
     public void initMob(byte[] mobTemp, byte[] mobLevel, int[] mobHp, short[] mobX, short[] mobY) {
@@ -231,6 +231,7 @@ public class Map implements Runnable {
                             mobZone = new Mob(mob);
                     }
 
+                    
                     mobZone.zone = zone;
                     zone.mobs.add(mobZone);
                 }
@@ -242,6 +243,7 @@ public class Map implements Runnable {
         for (Zone zone : zones) {
             for (Mob m : mobs) {
                 Mob mob = new Mob(m);
+                
                 mob.zone = zone;
                 zone.mobs.add(mob);
             }

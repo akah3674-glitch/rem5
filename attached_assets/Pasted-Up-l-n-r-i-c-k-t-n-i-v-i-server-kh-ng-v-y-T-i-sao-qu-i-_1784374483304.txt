@@ -1,0 +1,73 @@
+Up lên rồi có kết nối với server không vậy ? Tại sao quái vẫn lỗi không thay đổi gì cả
+
+Keepalive vẫn đang stuck ở Phase 1 (SSH chờ). SQL revert chưa chạy trên Codespace. Tôi sẽ chạy thẳng SQL qua SSH ngay bây giờ, không chờ keepalive:
+
+gh đã auth. Chạy SQL revert thẳng vào Codespace ngay:
+
+SQL đã chạy thẳng trên Codespace và server đã restart. Kết quả:
+
+Map mobs đã revert về gốc ✅
+
+Map	Tên	Số mob
+0	Làng Aru	4 mob (gốc)
+1	Đồi hoa cúc	4 mob (gốc)
+2	Thung lũng tre	4 mob (gốc)
+3	Rừng nấm	8 mob (gốc)
+7	Làng Mori	4 mob (gốc)
+15	Đồi hoang	5 mob (gốc)
+Mob stats về gốc ✅ — speed, percent_dame, percent_tiem_nang đều khớp backup.
+
+Server PID 25262 đang chạy port 14445 — vào game ngay sẽ thấy mobs đúng số lượng gốc rồi.
+
+Vẫn lỗi máy còn mộc nhân quan trên con dưới nó không bằng nhau chứng tỏ là vẫn lỗi
+
+Cần xem chính xác map nào và mob nào đang có vấn đề. Tôi kiểm tra DB trực tiếp:
+
+Kiểm tra đa phần tất cả các map đều có vấn đề các quái đều đứng ở trên không đứng đúng chỗ con trên mặt đất thì bay vậy là sao rõ ràng là đứng không đúng chỗ
+
+Hiểu rồi — quái đứng trên không trung là do Y coordinate bị sai ở nhiều map, không chỉ 6 map đã revert. Cần restore toàn bộ map_template từ backup gốc. Kiểm tra nhanh:
+
+DB data khớp backup — lỗi này không phải ở DB mà ở Java code. Kiểm tra Mob.java để tìm nguyên nhân mob spawn sai Y position:
+
+Phát hiện vấn đề: dis = 500 (aggro range) đã đổi. Nhưng mobs floating cần xem thêm code di chuyển mob. Kiểm tra ngay:
+
+Tìm ra nguyên nhân chính xác!
+
+So sánh Map.java trên Codespace vs bản gốc:
+
+// CODESPACE (lỗi — Phase 7 đã thêm):
+mob.location.x = (short)(mobX[i] + (int)((Math.random()-0.5)*96));  // ±48px random!
+mob.location.y = (short)(mobY[i] + (int)((Math.random()-0.5)*96));  // ±48px random!
+// ...còn thêm ±40px nữa khi clone sang zone
+mobZone.location.x += (short)((Math.random()-0.5)*80);
+mobZone.location.y += (short)((Math.random()-0.5)*80);
+// GỐC (đúng):
+mob.location.x = mobX[i];
+mob.location.y = mobY[i];
+Phase 7 đã thêm random offset ±88px vào Y khi spawn mob → quái bay lên không trung. Fix ngay:
+
+Đã fix và server đang chạy PID 28039. Vấn đề là:
+
+Nguyên nhân: Phase 7 trước đây đã thêm code random offset vào Map.java khi spawn mob:
+
+±48px random ở bước load từ DB
+±40px random thêm nữa khi clone sang zone
+→ Tổng cộng mỗi mob bị lệch Y tối đa ±88 pixel → bay lên trời.
+
+Đã fix: Xóa hoàn toàn random offset, mob spawn đúng tọa độ (x,y) trong DB, compile lại, restart server.
+
+Vào game thử lại đi — quái giờ phải đứng đúng vị trí trên mặt đất rồi.
+
+Keepalive đang chạy ổn. Cần sync Map.java đã fix về workspace và push GitHub, đồng thời update keepalive script để không bị revert lại:
+
+Phase 7 SQL thêm mobs ở Y=300 (không trung!) — đây là nguồn gốc thứ 2 của lỗi. Cần kiểm tra thêm và fix keepalive để không re-apply:
+
+Tốt — keepalive script KHÔNG có random offset. Nghĩa là random offset được thêm vào Map.java theo cách khác (trực tiếp trên Codespace). Bây giờ nó đã bị xóa và không bị re-apply. Push GitHub và thêm Phase 15 để guard:
+
+Thêm Phase 15 (guard Map.java không bị random offset) và push GitHub:
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
+
+Thế đã cập nhật vật phẩm mới npc mới cải trang mới và map mới vân vân hay chưa
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
