@@ -74,3 +74,30 @@ wait
 | `Teamobi2026.rar` | Teamobi2026 Java server (SRC/20.jar + .class) | 629MB |
 | `PRJ_2Tab_550K.rar` | Unity client (assets x2/x3/x4, nhạc, font) | 332MB |
 | `HUNR_Client.rar` | Unity client HUNR (C#, Visual Studio project) | 92MB |
+
+## GitHub Repo tổng hợp tài nguyên
+
+**Repo:** `akah3674-glitch/nro-assets` (private)
+**Remote trong workspace:** `git remote add nro-assets https://TOKEN@github.com/akah3674-glitch/nro-assets.git`
+**Push:** `git push nro-assets nro-main:main`
+
+### Cấu trúc repo nro-assets:
+```
+icons/x1-x4/        ← 64,315 icon files (item/skill/UI) — Teamobi2026
+effects/x1-x4/      ← effect sprites — Teamobi2026 + SRC-Team
+mob/x1-x4/          ← mob sprites — Teamobi mob.rar (nested RAR)
+img_by_name/x1-x4/  ← images by name — Teamobi2026 + SRC-Team
+item_bg/x1-x4/      ← item background frames — Teamobi2026
+map/                ← map tiles, bg, eff — SRC-Team
+data_img_version/x1-x4/ ← versioned game images — SRC-Team
+client/prj/         ← Unity PRJ_2Tab_550K Assets/Resources/res/ (426 PNG)
+client/hunr/        ← Unity HUNR_Client Assets/ (785 files)
+src/SRC-Team/       ← Java source 434 files + nro.sql
+src/Teamobi2026/    ← Java source 548 files
+```
+
+**Note:** Worktree tại `/tmp/nro-wt` dùng `git -C /home/runner/workspace` push. Cần tạo lại worktree mỗi session nếu /tmp bị xóa:
+```bash
+cd /home/runner/workspace
+git worktree add /tmp/nro-wt nro-assets/main
+```
