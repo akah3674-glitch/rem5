@@ -600,6 +600,13 @@ public class Zone {
             }
         } catch (Exception e) {
         }
+        // Clone Phân Thân: gửi packet thu nhỏ (msg 31) để client không render full-size
+        try {
+            if (plInfo.isNewPet) {
+                Service.gI().sendSmallNewPet(plReceive, plInfo);
+            }
+        } catch (Exception e) {
+        }
 
         try {
             if (plInfo.isDie()) {

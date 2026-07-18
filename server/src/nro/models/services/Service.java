@@ -202,6 +202,29 @@ public class Service {
         }
     }
 
+    /**
+     * Gửi packet msg(31) để client render NewPet/Clone nhỏ hơn player thường.
+     * Dùng cho PhanThanClone — tránh bị render full-size như player thật.
+     */
+    public void sendSmallNewPet(Player plReceive, Player clone) {
+        try {
+            Message msg = new Message(31);
+            msg.writer().writeInt((int) clone.id);
+            msg.writer().writeByte(1);            // has mini = true
+            msg.writer().writeShort((short) 5000); // chibi sprite type 0
+            msg.writer().writeByte(1);             // animation mode
+            msg.writer().writeByte(3);             // 3 frames
+            msg.writer().writeByte(0);
+            msg.writer().writeByte(1);
+            msg.writer().writeByte(2);
+            msg.writer().writeShort(48);           // width  — nhỏ hơn player, to hơn chibi
+            msg.writer().writeShort(48);           // height
+            plReceive.sendMessage(msg);
+            msg.cleanup();
+        } catch (Exception e) {
+        }
+    }
+
     public void sendChibiFollowToMe(Player me, Player pl) {
         short smallId = (short) (pl.effectSkill.isChibi ? pl.typeChibi + 5000 : 0);
         Message msg;
