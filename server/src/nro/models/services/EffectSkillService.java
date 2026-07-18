@@ -303,7 +303,7 @@ public class EffectSkillService {
         Service.gI().Send_Info_NV(player);
         Service.gI().point(player);
         // Hiện timer 10 phút trên màn hình — icon 1995 = "Cải trang" item
-        ItemTimeService.gI().sendItemTime(player, 1995, 600);
+        ItemTimeService.gI().sendItemTime(player, 3783, 600); // icon 3783 = Open Power (confirmed)
         Service.gI().sendThongBao(player, "Biến Hình cấp " + level
             + ": +" + BIEN_HINH_DAME[level] + "% tấn công, +" + BIEN_HINH_DEF[level] + "% phòng thủ! (10 phút)");
     }
@@ -319,7 +319,7 @@ public class EffectSkillService {
         Service.gI().Send_Info_NV(player);
         Service.gI().point(player);
         // Xóa timer khỏi màn hình
-        ItemTimeService.gI().sendItemTime(player, 1995, 0);
+        ItemTimeService.gI().sendItemTime(player, 3783, 0);
     }
 
     /** Tạo N clone phân thân cho player theo cấp skill */
@@ -348,7 +348,7 @@ public class EffectSkillService {
         Service.gI().sendThongBao(player, "Phân Thân cấp " + level
             + ": tạo " + cloneCount + " phân thân (sức mạnh " + power + "%)! (5 phút)");
         // Hiện timer 5 phút — icon 31142 = Phân Thân item icon
-        ItemTimeService.gI().sendItemTime(player, 31142, 300);
+        ItemTimeService.gI().sendItemTime(player, 5072, 300); // icon 5072 = DK (confirmed)
     }
 
     /** Xóa toàn bộ clone phân thân của player */
@@ -360,7 +360,7 @@ public class EffectSkillService {
         }
         player.phanThanClones.clear();
         // Xóa timer Phân Thân khỏi màn hình
-        ItemTimeService.gI().sendItemTime(player, 31142, 0);
+        ItemTimeService.gI().sendItemTime(player, 5072, 0);
     }
 
     public void BinhDown(Player player) {

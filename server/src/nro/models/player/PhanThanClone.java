@@ -1,6 +1,5 @@
 package nro.models.player;
 
-import nro.models.consts.ConstPlayer;
 import nro.models.mob.Mob;
 import nro.models.services.PlayerService;
 import nro.models.utils.Util;
@@ -29,7 +28,8 @@ public class PhanThanClone extends NewPet {
      * @param index        Thứ tự clone (1-based)
      */
     public PhanThanClone(Player master, int powerPercent, int index) {
-        super(master, getCloneHead(master), getCloneBody(master), getCloneLeg(master));
+        // Skin y hệt master tại thời điểm tạo (bản sao chính chủ)
+        super(master, master.getHead(), master.getBody(), master.getLeg());
         this.powerPercent = powerPercent;
         this.name   = master.name + "#" + index;
         this.gender = master.gender;
@@ -39,23 +39,6 @@ public class PhanThanClone extends NewPet {
             this.location.y = master.location.y;
         }
         setupStats();
-    }
-
-    // -------------------------------------------------------
-    // Skin riêng cho clone — dùng outfit Biến Hình cấp 2 của
-    // chủng tộc tương ứng, khác hẳn trang bị thường của master.
-    // -------------------------------------------------------
-    private static short getCloneHead(Player master) {
-        int g = Math.min(Math.max(master.gender, 0), 2);
-        return ConstPlayer.OUTFIT_BIEN_HINH[g][1][0]; // cấp 2, [head]
-    }
-    private static short getCloneBody(Player master) {
-        int g = Math.min(Math.max(master.gender, 0), 2);
-        return ConstPlayer.OUTFIT_BIEN_HINH[g][1][1]; // cấp 2, [body]
-    }
-    private static short getCloneLeg(Player master) {
-        int g = Math.min(Math.max(master.gender, 0), 2);
-        return ConstPlayer.OUTFIT_BIEN_HINH[g][1][2]; // cấp 2, [leg]
     }
 
     /** Sao chép chỉ số từ master, scale theo powerPercent */

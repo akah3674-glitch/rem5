@@ -480,6 +480,13 @@ public class Player implements Runnable {
                     if (newPet != null) {
                         newPet.update();
                     }
+                    // Cập nhật clone Phân Thân (Zone không tự update isNewPet)
+                    if (phanThanClones != null && !phanThanClones.isEmpty()) {
+                        for (nro.models.player.PhanThanClone c :
+                                new java.util.ArrayList<>(phanThanClones)) {
+                            try { if (c != null) c.update(); } catch (Exception ignored) {}
+                        }
+                    }
                     if (satellite != null) {
                         satellite.update();
                     }
