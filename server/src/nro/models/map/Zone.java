@@ -75,10 +75,14 @@ public class Zone {
     public List<TrapMap> trapMaps;
     public List<MaBuHold> maBuHolds;
 
-    @Setter
     @Getter
     public Player Npc;
     public int mapId;
+
+    /** Manual setter vì Lombok @Setter không hoạt động khi compile với -proc:none */
+    public void setNpc(Player npc) {
+        this.Npc = npc;
+    }
     private int nextMobId = 1000;
 
     public boolean isFullPlayer() {
