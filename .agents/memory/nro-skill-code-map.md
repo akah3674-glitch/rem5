@@ -61,15 +61,17 @@ Restart:   pkill -9 -f NgocRongOnline; sleep 3; nohup java -Xms256m -Xmx1g -jar 
 
 ## 📌 sendItemTime — Icon ID đã xác nhận hoạt động
 
-| Icon ID | Tên item | Dùng cho |
-|---|---|---|
-| 1995 | Cải trang | Biến Hình timer |
-| 31142 | Phân Thân | Phân Thân timer |
-| 3784 | Khiên năng lượng | Khiên timer |
-| 3782 | Thôi miên | Sleep timer |
-| 3779 | Trói | Hold timer |
-| 2755 | Bổ huyết | HP buff timer |
-| 433 | Cải trang Ginyu | (dùng ở chỗ khác trong code) |
+| Icon ID | Tên item | Dùng cho | Trạng thái |
+|---|---|---|---|
+| 3783 | Open Power | Biến Hình timer (600s) | ✅ confirmed |
+| 5072 | DK item | Phân Thân timer (300s) | ✅ confirmed |
+| 3784 | Khiên năng lượng | Khiên timer | ✅ confirmed |
+| 3782 | Thôi miên | Sleep timer | ✅ confirmed |
+| 3779 | Trói | Hold timer | ✅ confirmed |
+| 2755 | Bổ huyết | HP buff timer | ✅ confirmed |
+| 1995 | Cải trang (icon) | ❌ KHÔNG hoạt động trên client | ❌ |
+| 31142 | Phân Thân (icon) | ❌ KHÔNG hoạt động trên client | ❌ |
+| 433 | Cải trang Ginyu | Dùng ở chỗ khác trong EffectSkillService | ✅ |
 
 ---
 
