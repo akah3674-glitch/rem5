@@ -3,3 +3,4 @@
 - [NRO Skill Code Map](nro-skill-code-map.md) — vị trí chính xác từng dòng/method cho Skill 27 Biến Hình ✅ + Skill 28 Phân Thân ✅
 - [NRO SRC-Team Analysis](nro-srcteam-analysis.md) — 417 Java files + 12744-line SQL; docs tại docs/NRO_UPGRADE*.md, scripts/nro_push_upgrade.sh
 - [NRO Teamobi2026 Upgrade](nro-teamobi2026-upgrade.md) — Phase 16 mới nhất: cai_trang 351 bộ + items INSERT IGNORE; Phase 15: fix Map.java spawn offset
+- [NRO Teamobi DB Deep Dive](nro-teamobi-db-deepdive.md) — flag_bag/intrinsic/npc_template đầy đủ; ItemMap+options pattern; 3 Drive files chưa phân tích được

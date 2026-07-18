@@ -1,0 +1,61 @@
+https://drive.google.com/file/d/1uH2O2FtuGpIQfIYVAhi9wcuxfDjTQddY/view?usp=drivesdk Ở bản này có icon cho skill biến hình, có tính năng cho skill biến hình qua đây học hỏi đi , ncp và cải trang ở đây cx nhiều, hoặc biến cải trang đặt làm npc bán đồ cũng được . Tự bạn up lên Codespace đi, trước up kiểu gì thì giờ làm như thế, tham khảo của bên này đi, luôn phải nhớ khi làm thì phân rõ ra lần sau không lẫn dễ giải quyết
+
+Để tải file từ Google Drive về Replit rồi tham khảo:
+
+Teamobi có rất nhiều thứ để học. Đào sâu song song vào những phần quan trọng:
+
+Phân tích xong. Teamobi không có skill BIEN_HINH (Skill.java chỉ đến id=26), nhưng có icon cải trang, item 1557, 10+ NPC template mới, và pattern sendItemTime cho buff timer. Tôi sẽ khai thác song song những phần quan trọng nhất:
+
+Tôi đã có đủ thông tin từ cả hai bản. Bây giờ check nhanh những gì cần thiết trên NRO server rồi implement:
+
+Server đã có Send_Caitrang trong setBienHinh ✅, và các item 1557/1554/1771 đã có trong DB ✅, NPC 103-110 cũng đã có ✅. Bây giờ check những gì còn thiếu:
+
+Biến Hình getHead/getLeg đã xử lý visual ✅. Cần check: icon thực tế trả về, cai_trang schema, và items thiếu. Chạy song song:
+
+Bây giờ tôi đã hiểu toàn bộ hệ thống. Thực hiện từng bước rõ ràng — check chênh lệch item giữa hai bản, rồi import:
+
+Dữ liệu đã có đủ. Server của chúng ta có nhiều item hơn Teamobi. Vấn đề thực tế là: item 1557 chưa có trong cai_trang table + nhiều items type=5 khác thiếu cai_trang mapping. Thực hiện tất cả ngay:
+
+85 items có head/body/leg trong item_template nhưng CHƯA có trong cai_trang. Thực hiện tất cả SQL ngay — không cần compile:
+
+cai_trang tăng từ 351 → 453 entries ✅, item 1557 vào shop ✅. Restart server để load data mới + push GitHub + update memory song song:
+
+Shop load tại startup → cần restart. Làm song song: restart server + update memory file:
+
+Server đang chạy ✅. Item 1557 "Hắc Mị Nương" có trong shop ✅. Cập nhật memory và viết phân tích rõ ràng:
+
+Xong! Đây là tổng kết phiên này — phân rõ từng phần như bạn yêu cầu:
+
+Phân tích Teamobi2026 → Kết quả áp dụng
+🔍 Những gì Teamobi có (học hỏi)
+Mục	Teamobi2026	SRC-Team của chúng ta
+Skill 27 Biến Hình	❌ Không có (max=26)	✅ Custom implementation đầy đủ
+Bảng cai_trang	❌ Không có (dùng item_template trực tiếp)	✅ Có sẵn, nay mở rộng
+NPC template 76-110	✅ Có	✅ Đã có sẵn
+Item 1557 "Hắc Mị Nương"	✅ VIP reward	✅ Thêm vào shop
+Send_Caitrang sau setBienHinh	✅ Pattern đúng	✅ Đã làm từ trước
+✅ Thay đổi đã áp dụng lên Codespace
+DB (không cần compile, hiệu lực ngay):
+
+cai_trang table: 351 → 453 entries — thêm 102 items có head/body/leg trong item_template nhưng trước đây thiếu mapping
+item 1557 "Hắc Mị Nương": gem 0 → 500, thêm vào bảng cai_trang (head=1434, body=1435, leg=1436)
+SHOP_CAI_TRANG: nay có 74 items (thêm 1557 + các cải trang cao cấp khác)
+Server đang chạy: shop(33) ✅, npc_template(94) ✅
+Lưu ý quan trọng cho lần sau:
+
+Teamobi field 7 trong item_template = icon_id (không phải gem) — đừng nhầm khi parse
+cai_trang query on-demand từ DB, không load lúc startup — đổi DB không cần restart
+item_shop load lúc startup — đổi shop cần restart server
+https://drive.google.com/file/d/1ENWegm_JR1E4kRYGgx1ypgeoIMbkn_aj/view?usp=drivesdkhttps://drive.google.com/file/d/1HlpW2Dg-Tt-UNSLlljC47LB_SrhYYII4/view?usp=drivesdkhttps://drive.google.com/file/d/1XxlILhBTyF-1uRK2NQ7BKAVRYuJ6qhmv/view?usp=drivesdk Cái nào khai thác xong lưu vào bộ nhớ để lần tới còn ứng dụng nha, không lưu là mất ký ức đó
+
+Tải 3 file song song:
+
+Extract cả 3 song song:
+
+Có 3 nguồn hay. Phân tích song song sâu vào từng file quan trọng:
+
+Tiếp tục phân tích sâu song song:
+
+Rất nhiều thứ hay. Tiếp tục phân tích sâu 3 mảng quan trọng nhất song song:
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
