@@ -1,4 +1,5 @@
-- [NRO Server trên Codespaces](nro-server-codespaces.md) — frp.freefrp.net:21445; 16 phases keepalive; GitHub repo: akah3674-glitch/rem5
-- [Working Preferences](working-preferences.md) — quy tắc làm việc: lưu tiến trình cuối phiên, đánh dấu phần xong, tiết kiệm token, sửa đúng chỗ, sync GitHub
+- [NRO Server trên Codespaces](nro-server-codespaces.md) — Codespace name, deploy 4 bước, repo github remote, game IP/port
+- [Working Preferences](working-preferences.md) — lưu cuối phiên, đánh dấu xong, tiết kiệm token, sửa đúng chỗ, push GitHub trước
+- [NRO Skill Code Map](nro-skill-code-map.md) — vị trí chính xác từng dòng/method cho Skill 27 Biến Hình ✅ + Skill 28 Phân Thân ✅
 - [NRO SRC-Team Analysis](nro-srcteam-analysis.md) — 417 Java files + 12744-line SQL; docs tại docs/NRO_UPGRADE*.md, scripts/nro_push_upgrade.sh
 - [NRO Teamobi2026 Upgrade](nro-teamobi2026-upgrade.md) — Phase 16 mới nhất: cai_trang 351 bộ + items INSERT IGNORE; Phase 15: fix Map.java spawn offset
