@@ -603,9 +603,22 @@ public class Zone {
         } catch (Exception e) {
         }
         // Clone Phân Thân: gửi packet thu nhỏ (msg 31) để client không render full-size
+        // Inline thay vì gọi Service.sendSmallNewPet để tránh circular dependency khi compile
         try {
             if (plInfo.isNewPet) {
-                Service.gI().sendSmallNewPet(plReceive, plInfo);
+                Message msgSmall = new Message(31);
+                msgSmall.writer().writeInt((int) plInfo.id);
+                msgSmall.writer().writeByte(1);
+                msgSmall.writer().writeShort((short) 5000);
+                msgSmall.writer().writeByte(1);
+                msgSmall.writer().writeByte(3);
+                msgSmall.writer().writeByte(0);
+                msgSmall.writer().writeByte(1);
+                msgSmall.writer().writeByte(2);
+                msgSmall.writer().writeShort(48);
+                msgSmall.writer().writeShort(48);
+                plReceive.sendMessage(msgSmall);
+                msgSmall.cleanup();
             }
         } catch (Exception e) {
         }

@@ -90,9 +90,9 @@ public class TOP {
     public void setInfo2(String info2)          { this.info2 = info2; }
     public void setParamCompare(long p)         { this.paramCompare = p; }
 
-    /** Manual @Builder replacement */
-    public static Builder builder() { return new Builder(); }
-    public static class Builder {
+    /** Manual @Builder replacement — tên TOPBuilder để match Lombok-compiled Manager.java */
+    public static TOPBuilder builder() { return new TOPBuilder(); }
+    public static class TOPBuilder {
         private TOP t = new TOP();
         public Builder name(String v)        { t.name = v; return this; }
         public Builder gender(byte v)        { t.gender = v; return this; }
