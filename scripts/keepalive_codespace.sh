@@ -58,15 +58,50 @@ ping_codespace() {
 
   local RESULT
   RESULT=$($GH_BIN codespace ssh -c "$CS" -- bash -s 2>/dev/null << 'REMOTE'
-    pgrep -f NgocRongOnline > /dev/null && echo "ALIVE" || echo "DEAD"
+    JAVA_OK=0; BRIDGE_OK=0; DB_OK=0
+    pgrep -f NgocRongOnline > /dev/null && JAVA_OK=1
+    pgrep -f ws_bridge > /dev/null && ss -tlnp | grep -q 8080 && BRIDGE_OK=1
+    mysql -u root -e "SELECT 1;" > /dev/null 2>&1 && DB_OK=1
+
+    # Auto-heal: DB
+    if [ $DB_OK -eq 0 ]; then
+      sudo service mariadb start > /dev/null 2>&1; sleep 3
+      mysql -u root -e "SELECT 1;" > /dev/null 2>&1 && DB_OK=1
+    fi
+
+    # Auto-heal: WS Bridge
+    if [ $BRIDGE_OK -eq 0 ]; then
+      pkill -f ws_bridge 2>/dev/null
+      nohup python3 ~/bin/ws_bridge.py >> ~/logs/ws_bridge.log 2>&1 &
+      sleep 2
+      pgrep -f ws_bridge > /dev/null && BRIDGE_OK=1
+    fi
+
+    # Auto-heal: Java server
+    if [ $JAVA_OK -eq 0 ]; then
+      cd ~/nro/SRC
+      nohup java -Xms512m -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=30 \
+        -XX:G1HeapRegionSize=4m -XX:+ParallelRefProcEnabled \
+        -XX:InitiatingHeapOccupancyPercent=35 -XX:+DisableExplicitGC \
+        -jar NgocRongOnline.jar >> ~/logs/server.log 2>&1 &
+      sleep 15
+      pgrep -f NgocRongOnline > /dev/null && JAVA_OK=1
+    fi
+
+    echo "JAVA=$JAVA_OK BRIDGE=$BRIDGE_OK DB=$DB_OK"
+    [ $JAVA_OK -eq 1 ] && echo "ALIVE" || echo "DEAD"
 REMOTE
   )
 
+  # Set port 8080 public mỗi lần ping
+  $GH_BIN codespace ports visibility 8080:public -c "$CS" > /dev/null 2>&1
+
   if echo "$RESULT" | grep -q "ALIVE"; then
-    log "[$NAME] ✅ Server đang chạy"
+    local STATUS=$(echo "$RESULT" | grep "JAVA=")
+    log "[$NAME] ✅ ALIVE | $STATUS"
     return 0
   else
-    log "[$NAME] ❌ Server không phản hồi"
+    log "[$NAME] ❌ Server không phản hồi — $RESULT"
     return 1
   fi
 }
@@ -2186,13 +2221,15 @@ start_server() {
     sudo rc-service mariadb start 2>/dev/null || sudo service mariadb start 2>/dev/null || \
     sudo /usr/bin/mysqld_safe --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1 &
     sleep 3
-    pkill -f playit_old 2>/dev/null; pkill -f frpc 2>/dev/null; pkill -f NgocRongOnline 2>/dev/null; sleep 2
+    pkill -f playit_old 2>/dev/null; pkill -f frpc 2>/dev/null; pkill -f NgocRongOnline 2>/dev/null; pkill -f ws_bridge 2>/dev/null; sleep 2
     # Tự tải lại playit v0.15.0 nếu /tmp bị xóa sau Codespace restart
     if [ ! -f "/tmp/playit_old" ] || [ \$(stat -c%s /tmp/playit_old 2>/dev/null || echo 0) -lt 1000000 ]; then
       curl -sL "https://github.com/playit-cloud/playit-agent/releases/download/v0.15.0/playit-linux-amd64" \
         -o /tmp/playit_old && chmod +x /tmp/playit_old
     fi
     nohup /tmp/playit_old >> ~/logs/playit_old.log 2>&1 &
+    # WS Bridge (từ vị trí cố định ~/bin/)
+    nohup python3 ~/bin/ws_bridge.py >> ~/logs/ws_bridge.log 2>&1 &
     # Tự tải lại frpc nếu /tmp bị xóa sau Codespace restart
     if [ ! -f "/tmp/frp/frpc" ]; then
       mkdir -p /tmp/frp
