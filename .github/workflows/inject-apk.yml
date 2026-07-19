@@ -91,6 +91,23 @@ jobs:
           mv /tmp/bridge_dex/classes.dex /tmp/classes2.dex
           echo "✅ classes2.dex: $(du -sh /tmp/classes2.dex | cut -f1)"
 
+      # ── Patch server IP/port → 127.0.0.1:14445 + auto-connect ──
+      - name: Patch server IP & auto-connect
+        run: |
+          echo "=== Smali files chứa server IP / socket ==="
+          grep -rl "Ljava/net/Socket\|SSLSocket\|InetSocketAddress" /tmp/game_src/smali/ | head -10 || true
+          grep -rl "DragonBoy\|14445\|14449" /tmp/game_src/smali/ | head -10 || true
+
+          echo "=== Patch ==="
+          python3 android-bridge-inject/patch_server.py \
+            /tmp/game_src/smali \
+            /tmp/game_src/assets
+
+          echo "=== Xác nhận — không còn IP lạ ==="
+          # Kiểm tra không còn các IP server cũ
+          grep -r "const-string.*\"[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\." \
+            /tmp/game_src/smali/ | grep -v "127.0.0.1\|10\.\|192\.168\|#" | head -10 || echo "✅ Sạch"
+
       # ── Inject BridgeProvider.smali vào game smali ────────
       - name: Inject BridgeProvider.smali
         run: |
