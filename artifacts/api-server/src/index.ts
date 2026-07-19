@@ -24,42 +24,66 @@ const GAME_WS_URL =
   "wss://cautious-space-halibut-p7rwgqwxrg5gfrrqg-8080.app.github.dev";
 
 // ── WebSocket relay server ────────────────────────────────────────────────────
-// APK kết nối tới /api/ws → relay bidirectional qua WebSocket tới Codespace
-// Codespace ws_bridge_server.py nhận và forward TCP → Game Server local
-// Không dùng raw TCP xuyên internet
 const wss = new WebSocketServer({ noServer: true });
 
 wss.on("connection", (clientWs) => {
   logger.info({ gameWsUrl: GAME_WS_URL }, "APK connected — opening relay to Codespace");
 
+  // Queue messages từ APK trong lúc gameWs chưa OPEN
+  // (Codespace WS cần ~150-300ms để mở — nếu drop sẽ mất game handshake)
+  const pendingFromApk: Array<{ data: Buffer | string; isBinary: boolean }> = [];
+  let relayReady = false;
+  let closed = false;
+
   const gameWs = new WebSocket(GAME_WS_URL, {
-    handshakeTimeout: 10000,
-    // Không cần headers đặc biệt
+    handshakeTimeout: 15000,
   });
 
-  gameWs.binaryType = "nodebuffer";
+  const cleanup = (reason: string) => {
+    if (closed) return;
+    closed = true;
+    logger.info({ reason }, "Relay closed");
+    if (clientWs.readyState === WebSocket.OPEN) clientWs.close();
+    if (gameWs.readyState === WebSocket.OPEN || gameWs.readyState === WebSocket.CONNECTING)
+      gameWs.close();
+  };
+
+  gameWs.on("open", () => {
+    logger.info(
+      { queued: pendingFromApk.length },
+      "Relay to Codespace established — flushing queued messages"
+    );
+    relayReady = true;
+
+    // Flush tất cả data APK đã gửi trong lúc chờ
+    for (const msg of pendingFromApk) {
+      if (gameWs.readyState === WebSocket.OPEN) {
+        gameWs.send(msg.data, { binary: msg.isBinary });
+      }
+    }
+    pendingFromApk.length = 0;
+  });
 
   // APK → Codespace
   clientWs.on("message", (data, isBinary) => {
-    if (gameWs.readyState === WebSocket.OPEN) {
-      gameWs.send(data, { binary: isBinary });
+    if (relayReady && gameWs.readyState === WebSocket.OPEN) {
+      gameWs.send(data as Buffer, { binary: isBinary });
+    } else if (!closed) {
+      // Queue lại — gameWs chưa sẵn sàng
+      pendingFromApk.push({ data: data as Buffer, isBinary });
+      if (pendingFromApk.length === 1) {
+        logger.debug("Queuing APK data while relay opens...");
+      }
     }
   });
 
   // Codespace → APK
   gameWs.on("message", (data, isBinary) => {
     if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(data, { binary: isBinary });
+      clientWs.send(data as Buffer, { binary: isBinary });
     }
   });
 
-  const cleanup = (reason: string) => {
-    logger.info({ reason }, "Relay closed");
-    if (clientWs.readyState === WebSocket.OPEN) clientWs.close();
-    if (gameWs.readyState === WebSocket.OPEN) gameWs.close();
-  };
-
-  gameWs.on("open", () => logger.info("Relay to Codespace established"));
   gameWs.on("error", (e) => {
     logger.error({ err: e.message }, "Codespace WS error");
     cleanup("game ws error");
@@ -69,7 +93,12 @@ wss.on("connection", (clientWs) => {
     logger.error({ err: e.message }, "APK WS error");
     cleanup("apk ws error");
   });
-  clientWs.on("close", () => cleanup("apk disconnected"));
+  clientWs.on("close", () => {
+    if (!closed) {
+      logger.info("APK disconnected");
+      cleanup("apk disconnected");
+    }
+  });
 });
 
 // ── HTTP server với WebSocket upgrade support ─────────────────────────────────
