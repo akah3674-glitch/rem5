@@ -2,29 +2,48 @@ name: Codespace Keep-Alive + Auto-Restart Services
 
 on:
   schedule:
-    # Chạy mỗi 20 phút để tránh Codespace ngủ (timeout 30 phút)
-    - cron: '*/20 * * * *'
+    # Chạy mỗi 15 phút (Codespace timeout 30 phút — cần ping trước khi ngủ)
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
   keepalive:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Ping Codespace WebSocket + restart services nếu cần
+      - name: Keep Codespace alive + restart services nếu cần
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_NRO_TOKEN }}
         run: |
-          CODESPACE="cautious-space-halibut-p7rwgqwxrg5gfrrqg"
-          WS_URL="https://cautious-space-halibut-p7rwgqwxrg5gfrrqg-8080.app.github.dev"
+          CODESPACE="improved-fishstick-966vx76qqgx7cqjp"
+          WS_URL="https://improved-fishstick-966vx76qqgx7cqjp-8080.app.github.dev"
+          API_URL="https://e27e662b-4009-4268-89a1-11f93bb3b91a-00-epntj4xg8rby.sisko.replit.dev/api/ws-url"
 
-          echo "=== $(date) ==="
+          echo "=== $(date '+%Y-%m-%d %H:%M:%S UTC') ==="
 
-          # 1. Wake Codespace nếu đang ngủ
-          echo "Waking Codespace..."
-          gh codespace list 2>/dev/null | grep "$CODESPACE" || true
+          # ── Kiểm tra giờ VN (UTC+7) ──────────────────────────────────────
+          VN_HOUR=$(date -u -d "+7 hours" '+%H' | sed 's/^0*//' || echo "12")
+          VN_MIN=$(date -u -d "+7 hours" '+%M' | sed 's/^0*//' || echo "0")
+          VN_HOUR=${VN_HOUR:-0}
+          VN_MIN=${VN_MIN:-0}
+          echo "Giờ VN: ${VN_HOUR}h${VN_MIN}m"
 
-          # 2. Ping WebSocket endpoint (HTTP request để wake port)
-          echo "Pinging WS bridge..."
+          # Hoạt động: 04:00 → 23:50
+          ACTIVE=0
+          if [ "$VN_HOUR" -ge 4 ] && [ "$VN_HOUR" -lt 23 ]; then
+            ACTIVE=1
+          elif [ "$VN_HOUR" -eq 23 ] && [ "$VN_MIN" -lt 50 ]; then
+            ACTIVE=1
+          fi
+
+          if [ "$ACTIVE" -eq 0 ]; then
+            echo "💤 Ngoài giờ hoạt động (23:50 – 04:00 VN) — bỏ qua"
+            exit 0
+          fi
+
+          echo "✅ Trong giờ hoạt động — kiểm tra dịch vụ..."
+
+          # ── 1. Ping ws_bridge (HTTP) ──────────────────────────────────────
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 15 \
             -H "Upgrade: websocket" \
@@ -32,37 +51,89 @@ jobs:
             -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
             -H "Sec-WebSocket-Version: 13" \
             "${WS_URL}" 2>/dev/null || echo "000")
+          echo "WS Bridge HTTP: $HTTP_CODE"
 
-          echo "HTTP response: $HTTP_CODE"
+          # ── 2. Nếu bridge chết → restart toàn bộ dịch vụ ─────────────────
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" = "502" ] || [ "$HTTP_CODE" = "503" ] || [ "$HTTP_CODE" = "504" ]; then
+            echo "⚠️ Bridge không phản hồi — restart services trên Codespace..."
 
-          # 3. Nếu bridge không phản hồi → restart services trên Codespace
-          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" = "502" ] || [ "$HTTP_CODE" = "503" ]; then
-            echo "Bridge không phản hồi — restart services..."
             gh codespace ssh -c "$CODESPACE" -- bash << 'REMOTE'
-              # Restart ws_bridge
+              set -e
+              HOME_DIR="${HOME:-/home/vscode}"
+              LOG_DIR="$HOME_DIR/logs"
+              mkdir -p "$LOG_DIR"
+
+              echo "=== Restart ws_bridge ==="
               pkill -f ws_bridge 2>/dev/null || true
               sleep 1
+
+              # Tìm ws_bridge.py — ưu tiên ~/bin/
               WS_BRIDGE=""
-              for p in /tmp/ws_bridge.py ~/ws_bridge.py; do
+              for p in "$HOME_DIR/bin/ws_bridge.py" "$HOME_DIR/ws_bridge.py" "/tmp/ws_bridge.py"; do
                 [ -f "$p" ] && WS_BRIDGE="$p" && break
               done
-              [ -z "$WS_BRIDGE" ] && WS_BRIDGE="/tmp/ws_bridge.py"
-              nohup python3 "$WS_BRIDGE" >> ~/logs/ws_bridge.log 2>&1 &
-              echo "ws_bridge restarted PID=$!"
-
-              # Restart game server nếu chết
-              if ! pgrep -f NgocRongOnline > /dev/null 2>&1; then
-                cd ~/nro/SRC 2>/dev/null || true
-                nohup java -Xms256m -Xmx1g -jar NgocRongOnline.jar >> ~/logs/server.log 2>&1 &
-                echo "Game server restarted PID=$!"
+              if [ -z "$WS_BRIDGE" ]; then
+                echo "❌ Không tìm thấy ws_bridge.py!"
+              else
+                export PATH="$PATH:$HOME_DIR/.local/bin"
+                nohup python3 "$WS_BRIDGE" >> "$LOG_DIR/ws_bridge.log" 2>&1 &
+                sleep 2
+                pgrep -f ws_bridge > /dev/null && echo "✅ ws_bridge OK (PID=$!)" || echo "❌ ws_bridge FAIL"
               fi
 
-              # Set port public
+              echo "=== Kiểm tra game server ==="
+              if ! pgrep -f NgocRongOnline > /dev/null 2>&1; then
+                echo "Game server chết — restart..."
+
+                # Restart MariaDB nếu cần
+                mysql -u root -e "SELECT 1;" > /dev/null 2>&1 || {
+                  sudo service mariadb start 2>/dev/null || \
+                  sudo /usr/bin/mariadbd-safe --user=mysql >> "$LOG_DIR/mariadb.log" 2>&1 &
+                  sleep 4
+                }
+
+                cd "$HOME_DIR/nro/SRC" 2>/dev/null || { echo "❌ Không tìm thấy ~/nro/SRC"; exit 0; }
+                nohup java -Xms512m -Xmx1g \
+                  -XX:+UseG1GC -XX:MaxGCPauseMillis=30 \
+                  -XX:G1HeapRegionSize=4m -XX:+ParallelRefProcEnabled \
+                  -XX:InitiatingHeapOccupancyPercent=35 -XX:+DisableExplicitGC \
+                  -Djava.net.preferIPv4Stack=true \
+                  -jar NgocRongOnline.jar >> "$LOG_DIR/server.log" 2>&1 &
+                sleep 15
+                pgrep -f NgocRongOnline > /dev/null && echo "✅ Game server OK" || echo "❌ Game server FAIL"
+              else
+                echo "✅ Game server đang chạy (PID=$(pgrep -f NgocRongOnline | head -1))"
+              fi
+
+              echo "=== Set port public ==="
+              CODESPACE_NAME=$(printenv CODESPACE_NAME || hostname)
               gh codespace ports visibility 8080:public -c "$CODESPACE_NAME" 2>/dev/null || true
-              echo "Done."
+              echo "=== Done ==="
 REMOTE
+
+            # ── 3. Cập nhật WSS URL lên Replit API ───────────────────────
+            echo ""
+            echo "=== Lấy Cloudflare tunnel URL mới ==="
+            TUNNEL_URL=$(gh codespace ssh -c "$CODESPACE" -- bash -c \
+              "grep -r 'trycloudflare.com' ~/logs/cloudflared.log 2>/dev/null | grep -oE 'wss://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true" \
+              2>/dev/null | tr -d '[:space:]')
+
+            if [ -n "$TUNNEL_URL" ]; then
+              echo "Tunnel: $TUNNEL_URL"
+              curl -s -X POST "$API_URL" \
+                -H "Content-Type: application/json" \
+                -H "x-update-secret: ${SESSION_SECRET:-dev-secret}" \
+                -d "{\"url\":\"$TUNNEL_URL\"}" || true
+            else
+              echo "⚠️ Không lấy được tunnel URL mới"
+            fi
+
           else
-            echo "Bridge OK ($HTTP_CODE) — không cần restart"
+            echo "✅ Bridge OK ($HTTP_CODE) — không cần restart"
           fi
 
+          # ── 4. Luôn ping để tránh Codespace ngủ ──────────────────────────
+          echo ""
+          echo "=== Ping để giữ Codespace thức ==="
+          gh codespace ports visibility 8080:public -c "$CODESPACE" 2>/dev/null || true
           echo "=== Keep-alive done ==="
