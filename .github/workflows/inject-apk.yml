@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       ws_url:
-        description: 'WebSocket URL (wss://...app.github.dev hoặc wss://...replit.dev/ws)'
+        description: 'WebSocket URL fallback (wss://...trycloudflare.com)'
         required: true
-        default: 'wss://CODESPACE-8080.app.github.dev'
+        default: 'wss://salon-rankings-locks-separation.trycloudflare.com'
+      api_url:
+        description: 'Replit API URL để fetch URL động (https://...replit.dev/api/ws-url)'
+        required: false
+        default: 'https://e27e662b-4009-4268-89a1-11f93bb3b91a-00-epntj4xg8rby.sisko.replit.dev/api/ws-url'
       release_tag:
         description: 'Release tag (vd: v1.2.0). Để trống = chỉ upload artifact, không tạo release.'
         required: false
@@ -58,9 +62,12 @@ jobs:
           ANDROID_JAR="$ANDROID_HOME/platforms/android-34/android.jar"
           mkdir -p /tmp/bridge_classes/com/nro/bridge
 
-          # Copy tất cả source, patch WS_URL trong BridgeService
+          # Copy tất cả source, patch WS_URL + API_URL trong BridgeService
           mkdir -p /tmp/bridge_src/com/nro/bridge
-          sed 's|__WS_URL__|${{ github.event.inputs.ws_url }}|g' \
+          API="${{ github.event.inputs.api_url }}"
+          [ -z "$API" ] && API="https://e27e662b-4009-4268-89a1-11f93bb3b91a-00-epntj4xg8rby.sisko.replit.dev/api/ws-url"
+          sed -e 's|__WS_URL__|${{ github.event.inputs.ws_url }}|g' \
+              -e "s|__API_URL__|${API}|g" \
             android-bridge-inject/src/BridgeService.java \
             > /tmp/bridge_src/com/nro/bridge/BridgeService.java
           cp android-bridge-inject/src/BridgePreference.java \

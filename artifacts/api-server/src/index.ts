@@ -3,6 +3,7 @@ import net from "node:net";
 import { WebSocketServer, WebSocket } from "ws";
 import app from "./app";
 import { logger } from "./lib/logger";
+import { getWsUrl } from "./routes/wsUrl";
 
 const rawPort = process.env["PORT"];
 
@@ -18,11 +19,6 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// URL WebSocket của Codespace — đặt trong env để đổi mà không cần rebuild APK
-const GAME_WS_URL =
-  process.env["GAME_WS_URL"] ||
-  "wss://cautious-space-halibut-p7rwgqwxrg5gfrrqg-8080.app.github.dev";
-
 // ── WebSocket relay server ────────────────────────────────────────────────────
 const wss = new WebSocketServer({ noServer: true });
 
@@ -35,6 +31,8 @@ wss.on("connection", (clientWs) => {
   let relayReady = false;
   let closed = false;
 
+  // Lấy URL mới nhất từ wsUrl store (keepalive Codespace cập nhật sau mỗi restart)
+  const GAME_WS_URL = getWsUrl();
   const gameWs = new WebSocket(GAME_WS_URL, {
     handshakeTimeout: 15000,
   });

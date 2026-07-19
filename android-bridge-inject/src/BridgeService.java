@@ -13,6 +13,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.Charset;
 import java.util.concurrent.*;
+import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSocketFactory;
 
 /**
@@ -27,8 +28,12 @@ public class BridgeService extends Service {
     static final String CHANNEL_ID = "nro_bridge";
     static final int NOTIF_ID = 9001;
 
-    // URL sẽ được thay bằng sed trước khi compile
-    static final String WS_URL = "__WS_URL__";
+    // URL API server (Replit) — fetch URL động khi khởi động
+    static final String API_URL = "__API_URL__";
+    // Fallback: URL tunnel Cloudflare baked-in lúc build
+    static final String FALLBACK_WS_URL = "__WS_URL__";
+    // URL thực tế, được cập nhật từ API server khi start
+    static volatile String resolvedWsUrl = FALLBACK_WS_URL;
 
     private ServerSocket serverSocket;
     private ExecutorService pool;
@@ -64,10 +69,52 @@ public class BridgeService extends Service {
                 .setContentText("Bridge active")
                 .setSmallIcon(android.R.drawable.stat_sys_download)
                 .build());
+            // Fetch URL mới nhất từ Replit API server (background)
+            pool.submit(new Runnable() {
+                public void run() {
+                    String fetched = fetchWsUrl();
+                    if (fetched != null && fetched.startsWith("wss://")) {
+                        resolvedWsUrl = fetched;
+                        Log.i(TAG, "URL fetched from API: " + fetched);
+                    } else {
+                        Log.w(TAG, "API fetch fail, dùng fallback: " + FALLBACK_WS_URL);
+                    }
+                }
+            });
             pool.submit(new AcceptTask());
-            Log.i(TAG, "Bridge started → " + WS_URL);
+            Log.i(TAG, "Bridge started → API=" + API_URL + " fallback=" + FALLBACK_WS_URL);
         }
         return START_STICKY;
+    }
+
+    // ── Fetch WS URL từ Replit API ─────────────────────────
+    private String fetchWsUrl() {
+        try {
+            URL url = new URL(API_URL);
+            HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            conn.setRequestProperty("Accept", "application/json");
+            int code = conn.getResponseCode();
+            if (code == 200) {
+                InputStream in = conn.getInputStream();
+                ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                byte[] tmp = new byte[1024]; int n;
+                while ((n = in.read(tmp)) > 0) buf.write(tmp, 0, n);
+                String body = buf.toString("UTF-8");
+                // Parse {"url":"wss://..."} đơn giản
+                int idx = body.indexOf("\"url\"");
+                if (idx >= 0) {
+                    int q1 = body.indexOf('"', idx + 6) + 1;
+                    int q2 = body.indexOf('"', q1);
+                    if (q1 > 0 && q2 > q1) return body.substring(q1, q2);
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "fetchWsUrl: " + e.getMessage());
+        }
+        return null;
     }
 
     // ── AcceptTask: lắng nghe kết nối từ game ─────────────
@@ -95,8 +142,8 @@ public class BridgeService extends Service {
         public void run() {
             Socket ws = null;
             try {
-                // Parse wss://host[:port]/path
-                String url = WS_URL;
+                // Dùng URL đã fetch từ API (hoặc fallback)
+                String url = resolvedWsUrl;
                 boolean tls = url.startsWith("wss://");
                 String rest = url.substring(tls ? 6 : 5);
                 int slashIdx = rest.indexOf('/');
