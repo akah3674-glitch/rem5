@@ -12,8 +12,10 @@ jobs:
   inject:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout (bao gồm Git LFS cho client.apk)
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up JDK 11
         uses: actions/setup-java@v4
