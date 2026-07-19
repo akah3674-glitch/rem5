@@ -1,14 +1,16 @@
 {
-  "name": "Ngoc Rong Server",
-  "image": "mcr.microsoft.com/devcontainers/java:17-bullseye",
-  "features": {
-    "ghcr.io/devcontainers/features/sshd:1": { "version": "latest" },
-    "ghcr.io/devcontainers/features/java:1": { "version": "17" }
-  },
-  "forwardPorts": [14445, 8080, 4040],
-  "postCreateCommand": "bash .devcontainer/setup.sh",
-  "postStartCommand": "bash start.sh > /tmp/autostart.log 2>&1 &",
-  "customizations": {
-    "vscode": { "extensions": ["vscjava.vscode-java-pack"] }
+  "name": "NRO Game Server",
+  "postStartCommand": "bash /workspaces/${localWorkspaceFolderBasename}/scripts/codespace_autostart.sh",
+  "forwardPorts": [8080, 14445],
+  "portsAttributes": {
+    "8080": {
+      "label": "WS Bridge",
+      "onAutoForward": "silent",
+      "visibility": "public"
+    },
+    "14445": {
+      "label": "Game Server",
+      "onAutoForward": "silent"
+    }
   }
 }

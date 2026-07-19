@@ -1,8 +1,8 @@
 - [NRO Server trên Codespaces](nro-server-codespaces.md) — Codespace name, deploy 4 bước, repo github remote, game IP/port
-- [Google Drive Download](gdrive-download.md) — dùng drive.usercontent.google.com + confirm=t; giải nén RAR bằng nix-shell -p unrar (không dùng nix-env)
+- [Google Drive Download](gdrive-download.md) — dùng drive.usercontent.google.com + confirm=t; giải nén RAR bằng nix-shell -p unrar
 - [Working Preferences](working-preferences.md) — lưu cuối phiên, đánh dấu xong, tiết kiệm token, sửa đúng chỗ, push GitHub trước
-- [NRO Skill Code Map](nro-skill-code-map.md) — vị trí chính xác từng dòng/method cho Skill 27 Biến Hình ✅ + Skill 28 Phân Thân ✅
-- [NRO SRC-Team Analysis](nro-srcteam-analysis.md) — 417 Java files + 12744-line SQL; docs tại docs/NRO_UPGRADE*.md, scripts/nro_push_upgrade.sh
-- [NRO Teamobi2026 Upgrade](nro-teamobi2026-upgrade.md) — Phase 16 mới nhất: cai_trang 351 bộ + items INSERT IGNORE; Phase 15: fix Map.java spawn offset
-- [NRO Teamobi DB Deep Dive](nro-teamobi-db-deepdive.md) — flag_bag/intrinsic/npc_template đầy đủ; ItemMap+options pattern; 3 Drive files chưa phân tích được
-- [NRO No-TCP Research](nro-no-tcp-research.md) — APK Unity IL2CPP; Bridge APK source tại android-bridge/; Xray setup script; 3 hướng triển khai
+- [NRO Skill Code Map](nro-skill-code-map.md) — vị trí chính xác từng dòng/method cho Skill 27+28
+- [NRO SRC-Team Analysis](nro-srcteam-analysis.md) — 417 Java files + 12744-line SQL; docs tại docs/NRO_UPGRADE*.md
+- [NRO Teamobi2026 Upgrade](nro-teamobi2026-upgrade.md) — Phase 16: cai_trang 351 bộ + items INSERT IGNORE
+- [NRO Teamobi DB Deep Dive](nro-teamobi-db-deepdive.md) — flag_bag/intrinsic/npc_template; ItemMap+options pattern
+- [NRO No-TCP Bridge](nro-no-tcp-research.md) — APK inject DONE ✅; v1.1.0 released; WSS Codespace port 8080 public

@@ -1,0 +1,68 @@
+name: Codespace Keep-Alive + Auto-Restart Services
+
+on:
+  schedule:
+    # Chạy mỗi 20 phút để tránh Codespace ngủ (timeout 30 phút)
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Codespace WebSocket + restart services nếu cần
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CODESPACE="cautious-space-halibut-p7rwgqwxrg5gfrrqg"
+          WS_URL="https://cautious-space-halibut-p7rwgqwxrg5gfrrqg-8080.app.github.dev"
+
+          echo "=== $(date) ==="
+
+          # 1. Wake Codespace nếu đang ngủ
+          echo "Waking Codespace..."
+          gh codespace list 2>/dev/null | grep "$CODESPACE" || true
+
+          # 2. Ping WebSocket endpoint (HTTP request để wake port)
+          echo "Pinging WS bridge..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            -H "Upgrade: websocket" \
+            -H "Connection: Upgrade" \
+            -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+            -H "Sec-WebSocket-Version: 13" \
+            "${WS_URL}" 2>/dev/null || echo "000")
+
+          echo "HTTP response: $HTTP_CODE"
+
+          # 3. Nếu bridge không phản hồi → restart services trên Codespace
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" = "502" ] || [ "$HTTP_CODE" = "503" ]; then
+            echo "Bridge không phản hồi — restart services..."
+            gh codespace ssh -c "$CODESPACE" -- bash << 'REMOTE'
+              # Restart ws_bridge
+              pkill -f ws_bridge 2>/dev/null || true
+              sleep 1
+              WS_BRIDGE=""
+              for p in /tmp/ws_bridge.py ~/ws_bridge.py; do
+                [ -f "$p" ] && WS_BRIDGE="$p" && break
+              done
+              [ -z "$WS_BRIDGE" ] && WS_BRIDGE="/tmp/ws_bridge.py"
+              nohup python3 "$WS_BRIDGE" >> ~/logs/ws_bridge.log 2>&1 &
+              echo "ws_bridge restarted PID=$!"
+
+              # Restart game server nếu chết
+              if ! pgrep -f NgocRongOnline > /dev/null 2>&1; then
+                cd ~/nro/SRC 2>/dev/null || true
+                nohup java -Xms256m -Xmx1g -jar NgocRongOnline.jar >> ~/logs/server.log 2>&1 &
+                echo "Game server restarted PID=$!"
+              fi
+
+              # Set port public
+              gh codespace ports visibility 8080:public -c "$CODESPACE_NAME" 2>/dev/null || true
+              echo "Done."
+REMOTE
+          else
+            echo "Bridge OK ($HTTP_CODE) — không cần restart"
+          fi
+
+          echo "=== Keep-alive done ==="

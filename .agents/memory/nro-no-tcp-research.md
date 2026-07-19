@@ -1,49 +1,30 @@
 ---
-name: NRO No-TCP Architecture Research
-description: Kết quả phân tích APK client.apk và 3 hướng loại bỏ TCP relay
+name: NRO No-TCP Architecture — DONE
+description: Bridge nhúng trong APK, WSS Codespace public. v1.1.0 đã release.
 ---
 
-## APK Analysis (client.apk — 84MB)
+## Kết quả cuối (DONE ✅)
 
-**Engine:** Unity IL2CPP — socket code compiled sang native ARM binary (libil2cpp.so)
-**Implication:** Không thể sửa socket code bằng jadx (chỉ thấy Java wrapper, không có game logic)
+**Kiến trúc:** Game APK → TCP 127.0.0.1:14445 → BridgeService (trong APK) → WSS Codespace → TCP 14445 → Game Server
 
-### Key classes (từ global-metadata.dat):
-- `GameMidlet`: PORT, PORT2, PROVIDER, LANGUAGE, VERSION fields
-- `Session` (network class): host, NetworkInit, doConnect, isConnected, isMainSession, msgHandler, dataStream, cleanNetwork
-- Server selection class: ListIP, linkDefault, ipSelect, nameServer, GetServerList, TryCreateCustomServer, ShowInputServer, CustomServerInputKey
+**Release:** https://github.com/akah3674-glitch/rem5/releases/tag/v1.1.0
 
-### URL phát hiện trong metadata:
-- `http://dragonball.indonaga.com/coda/?username=` — server list URL
+**Codespace:** `cautious-space-halibut-p7rwgqwxrg5gfrrqg`
+- Bridge: `wss://cautious-space-halibut-p7rwgqwxrg5gfrrqg-8080.app.github.dev` (port public)
+- ws_bridge chạy tại `/tmp/ws_bridge.py` → nohup, PID không cố định
+- Game server port 14445, playit.gg `147.185.221.211:52286`
 
-### Port 14445 trong binary:
-- 9 occurrences trong armeabi-v7a/libil2cpp.so (LE u16)
-- Offset ví dụ: 0x32dafc, 0x45848c, 0x49848c
-- Các byte này nằm trong ARM BL instructions — patch trực tiếp corrupt code
+**Cách start bridge trên Codespace:**
+```bash
+pkill -f ws_bridge 2>/dev/null; nohup python3 /tmp/ws_bridge.py > /tmp/ws_bridge.log 2>&1 &
+gh codespace ports visibility 8080:public -c cautious-space-halibut-p7rwgqwxrg5gfrrqg
+```
 
-## Ba hướng triển khai
+**Rebuild APK khi URL đổi:** trigger `.github/workflows/inject-apk.yml` với input `ws_url` mới → download artifact → upload release mới.
 
-### A. v2rayNG (đề xuất nhanh nhất)
-- Android app từ Play Store, không sửa APK game
-- VLESS over WebSocket → Cloudflare VN PoP (5-10ms) → Codespace/Replit
-- Setup: `scripts/setup_xray_codespace.sh` sinh VLESS link + QR code
+**APK inject strategy:**
+- `BridgeProvider.smali` (viết tay) → smali/ → classes.dex
+- `BridgeService.java` (pure Java, no lambda) → javac → d8 → classes2.dex → zip vào APK
+- Multi-dex Android API 26+ native, không cần support lib
 
-### B. Bridge APK (đề xuất tốt nhất cho user phổ thông)
-- Android app riêng: background service TCP 127.0.0.1:14445 → WebSocket
-- Source tại `android-bridge/`
-- Build tự động: `.github/workflows/build-nro-bridge.yml` → download từ Actions
-- Người chơi nhập Custom Server = 127.0.0.1:14445 trong game
-- Sau reboot: tự khởi động lại (BootReceiver)
-
-### C. Inject smali vào game APK (sau khi B hoạt động)
-- apktool decompile → thêm BridgeService.smali → repackage + sign
-- 1 APK duy nhất
-
-## Files tạo ra:
-- `docs/APK_RESEARCH_NO_TCP.md` — phân tích đầy đủ
-- `android-bridge/` — Android project source hoàn chỉnh (Java + OkHttp WebSocket)
-- `.github/workflows/build-nro-bridge.yml` — GitHub Actions build APK
-- `scripts/setup_xray_codespace.sh` — Xray server setup + v2rayNG link
-- `scripts/ws_bridge_replit.py` — WebSocket bridge nâng cấp cho Replit
-
-**Why:** Bridge APK thay thế hoàn toàn Termux ws_bridge_client.py — không cần Termux, chạy nền trên Android.
+**Test:** Custom Server = `127.0.0.1:14445` trong game.

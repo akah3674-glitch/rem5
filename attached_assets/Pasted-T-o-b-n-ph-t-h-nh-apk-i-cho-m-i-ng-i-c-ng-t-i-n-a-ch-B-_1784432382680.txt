@@ -1,0 +1,59 @@
+Tạo bản phát hành apk đi cho mọi người cùng tải nữa chứ
+
+✅ Bản phát hành đã tạo xong!
+
+🔗 Link download công khai
+👉 https://github.com/akah3674-glitch/rem5/releases/tag/v1.0.0
+
+Link download trực tiếp APK (ai cũng tải được, không cần đăng nhập GitHub):
+
+https://github.com/akah3674-glitch/rem5/releases/download/v1.0.0/NROGame-bridge.apk
+📱 Hướng dẫn cho người chơi
+Tải APK về → cài lên Android (bật Cho phép nguồn không xác định)
+Mở game → Chọn máy chủ → Tùy chỉnh
+Nhập IP: 127.0.0.1 | Port: 14445
+Chơi bình thường — bridge tự chạy ngầm, không cần app thêm
+Lần sau muốn build APK mới với URL server khác, chỉ cần vào: GitHub → Actions → "Inject Bridge vào Game APK" → Run workflow → điền URL → build tự động → upload release mới.
+
+Ý bạn là sao " Lưu ý: APK đang dùng URL placeholder
+
+wss://CODESPACE-8080.app.github.dev. Khi bạn có URL Codespace thật, chạy lại workflow và điền URL vào ô input là tự build APK mới có URL đúng. " Làm full đi chứ điều chỉnh cả server để tôi chỉ cần vào test thôi
+
+Hiểu rồi — làm full luôn: setup server WebSocket trên Replit (đang chạy sẵn), lấy URL thật, build APK với URL đó, release cho test ngay.
+
+Rõ rồi — Codespace name đã biết: cautious-space-halibut-p7rwgqwxrg5gfrrqg. URL WebSocket của nó là wss://cautious-space-halibut-p7rwgqwxrg5gfrrqg-8080.app.github.dev. Cần làm 3 việc song song:
+
+Token có trong git remote. Biết Codespace name rồi. Làm 3 việc song song: setup server trên Codespace, build APK với URL đúng, cập nhật release.
+
+Bridge đang chạy, build đang chạy. Làm port public trên Codespace và theo dõi build song song:
+
+Build thành công! Download APK và tạo release mới với URL thật:
+
+✅ Xong toàn bộ — test được ngay!
+
+📥 Download APK (URL server thật đã nhúng sẵn)
+👉 https://github.com/akah3674-glitch/rem5/releases/tag/v1.1.0
+
+Link tải thẳng:
+
+https://github.com/akah3674-glitch/rem5/releases/download/v1.1.0/NROGame-bridge.apk
+Những gì đã setup
+Server (Codespace):
+
+WebSocket bridge đang chạy port 8080, visibility public
+URL: wss://cautious-space-halibut-p7rwgqwxrg5gfrrqg-8080.app.github.dev
+Game server Java đang chạy port 14445
+APK (v1.1.0):
+
+URL Codespace trên đã nhúng sẵn trong APK
+Bridge tự khởi động khi mở game
+Không cần Termux, không cần app thêm
+Cách test
+Cài APK → mở game
+Chọn máy chủ → Tùy chỉnh → nhập: 127.0.0.1 / 14445
+Kết nối → chơi bình thường
+⚠️ Nếu Codespace restart (URL thay đổi), chạy lại workflow "Inject Bridge vào Game APK" trên GitHub Actions với URL mới → download release mới.
+
+Yêu nhanh từ thêm vào memory lưu gọn chỉ còn 1% token
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
