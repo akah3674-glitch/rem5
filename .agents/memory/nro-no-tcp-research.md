@@ -1,52 +1,67 @@
 ---
-name: NRO No-TCP Architecture — DONE v1.3.0
-description: Bridge nhúng trong APK, relay qua Replit WS (URL cố định). v1.3.0 released.
+name: NRO Bridge APK — hiện tại v1.8.0
+description: Auto-connect hoàn chỉnh. BridgePreference ghi NRlink2+svselect. Rms dùng filesDir (KHÔNG phải PlayerPrefs).
 ---
 
-## Kiến trúc hiện tại (v1.3.0)
+## Kiến trúc (v1.8.0)
 
 ```
-APK → wss://[replit-dev-domain]/api/ws → Replit relay → wss://codespace-8080 → TCP local → Game Server
+APK (BridgeProvider.onCreate) → ghi NRlink2+svselect → Unity đọc 1 server → auto-connect
+     ↓ đồng thời
+BridgeService (foreground) → TCP 127.0.0.1:14445 ← Unity game → WS relay → Replit → Codespace → Game Server
 ```
 
-**Không dùng raw TCP xuyên internet** — hoàn toàn WebSocket.
+## Cơ chế Auto-Connect (v1.8.0)
 
-## APK URL cố định (không bao giờ cần build lại)
+`Rms.cs` lưu data vào **files** (KHÔNG phải PlayerPrefs/SharedPrefs):
+- Path: `context.getFilesDir()` = `/data/data/<pkg>/files/`
+- `saveRMSString(key, val)` → DataOutputStream.writeUTF(val) → file `key`
+- `saveRMSInt(key, x)` → 1 byte = x → file `key`
+
+`BridgePreference.applyServerPreset(ctx)` ghi TRƯỚC khi Unity đọc:
+- `NRlink2` = DataOutputStream.writeUTF("7A-56-55-58-5A-71-59-4A-42-03-07-0B-01-17-06-17-06-17-07-03-07-0D-02-0D-03-03-06-15-06-15-06")
+  (= XOR-encode("LocalHost:127.0.0.1:14445:0,0,0", "69"))
+- `svselect` = 1 byte = 0
+
+Game ServerListScreen.cs: nếu `nameServer.Length == 1` → auto-select, không hiện UI chọn server.
+
+**Why XOR key "69":** ModFunc.DecodeByteArrayString dùng XOR với UTF-8 bytes của "69" = [0x36, 0x39].
+
+## Server list format (GetServerList parse)
+
+`"Name:IP:Port:lang,Name2:IP2:Port2:lang2,...,defaultLang,priority"`  
+→ Split ",", last 2 items = defaultLang + priority  
+→ Còn lại = server entries
+
+Single server: `"LocalHost:127.0.0.1:14445:0,0,0"` → 1 server + lang=0 + priority=0
+
+## Key files
+
+- `android-bridge-inject/src/BridgePreference.java` — ghi NRlink2+svselect
+- `android-bridge-inject/src/BridgeService.java` — TCP→WS relay, port 14445
+- `android-bridge-inject/BridgeProvider.smali` — gọi BridgePreference + start BridgeService
+- `android-bridge-inject/patch_server.py` — patch text config + safe binary IL2CPP/Mono (v1.7.0+)
+- `.github/workflows/inject-apk.yml` — full build pipeline
+
+## WS URL (Replit relay → Codespace)
 
 `wss://e79372d3-fe48-4f9f-baa2-8dd65d05bf38-00-2shrgxg66t9cc.sisko.replit.dev/api/ws`
 
-**Release:** https://github.com/akah3674-glitch/rem5/releases/tag/v1.3.0
+Thay `GAME_WS_URL` trên Replit nếu Codespace URL đổi → không cần rebuild APK.
 
-## Replit WS Relay
+## Lỗi v1.4.0 (đã fix v1.5.0+)
 
-- File: `artifacts/api-server/src/index.ts`
-- WebSocket upgrade tại `/api/ws` → relay sang `GAME_WS_URL` env var
-- `GAME_WS_URL` = `wss://cautious-space-halibut-p7rwgqwxrg5gfrrqg-8080.app.github.dev`
-- Nếu Codespace URL đổi → chỉ cần update `GAME_WS_URL` trên Replit, không rebuild APK
+patch_server.py mở binary Unity bằng text mode → corrupt data.unity3d + global-metadata.dat → crash loop → lag.
+Fix: chỉ patch text extensions, dùng rb/wb cho binary.
 
-## Codespace Auto-Start (khi wake/resume)
+## Lịch sử releases
 
-- `scripts/codespace_autostart.sh` — auto-start game server + ws_bridge
-- `.devcontainer/devcontainer.json` → `postStartCommand` gọi script trên
-- Port 8080 tự set public
-
-## Keepalive (GitHub Actions scheduled)
-
-- `.github/workflows/codespace-keepalive.yml` — chạy mỗi 20 phút
-- Ping ws bridge → nếu chết thì SSH vào Codespace restart services
-- Tránh Codespace sleep (timeout 30 phút)
-
-## Fix v1.2.0 (APK crash Android 14)
-
-- Thêm `FOREGROUND_SERVICE_DATA_SYNC` permission vào `android-bridge-inject/patch_manifest.py`
-- Bắt buộc khi dùng `foregroundServiceType="dataSync"` trên Android 14+
+- v1.0-v1.3: bridge inject, Custom Server thủ công
+- v1.4.0: BROKEN — corrupt Unity binary
+- v1.5.0: fix binary corruption
+- v1.6.0-v1.7.0: thử patch IL2CPP/Mono (không tìm thấy string)
+- v1.8.0: auto-connect hoàn chỉnh qua filesDir injection ✅
 
 ## Test
 
-Custom Server = `127.0.0.1:14445` trong game → bridge tự relay qua Replit → Codespace → game server local.
-
-## Nếu Codespace URL đổi (tạo Codespace mới)
-
-1. Lấy URL mới: `wss://<new-codespace>-8080.app.github.dev`
-2. Update env var `GAME_WS_URL` trên Replit (không cần rebuild APK)
-3. APK không thay đổi
+Cài v1.8.0 → mở game → KHÔNG cần nhập IP → tự kết nối 127.0.0.1:14445 → relay qua Replit → Codespace → game server.
