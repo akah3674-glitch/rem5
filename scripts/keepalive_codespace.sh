@@ -2187,6 +2187,11 @@ start_server() {
     sudo /usr/bin/mysqld_safe --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1 &
     sleep 3
     pkill -f playit_old 2>/dev/null; pkill -f frpc 2>/dev/null; pkill -f NgocRongOnline 2>/dev/null; sleep 2
+    # Tự tải lại playit v0.15.0 nếu /tmp bị xóa sau Codespace restart
+    if [ ! -f "/tmp/playit_old" ] || [ \$(stat -c%s /tmp/playit_old 2>/dev/null || echo 0) -lt 1000000 ]; then
+      curl -sL "https://github.com/playit-cloud/playit-agent/releases/download/v0.15.0/playit-linux-amd64" \
+        -o /tmp/playit_old && chmod +x /tmp/playit_old
+    fi
     nohup /tmp/playit_old >> ~/logs/playit_old.log 2>&1 &
     # Tự tải lại frpc nếu /tmp bị xóa sau Codespace restart
     if [ ! -f "/tmp/frp/frpc" ]; then
@@ -2195,7 +2200,7 @@ start_server() {
         -o /tmp/frp.tar.gz && tar xzf /tmp/frp.tar.gz -C /tmp/frp --strip-components=1
       chmod +x /tmp/frp/frpc
     fi
-    # Tạo lại config nếu mất
+    # Tạo lại config nếu mất — frpc chỉ dùng cho register port 8090
     if [ ! -f "/tmp/frpc_nro.toml" ]; then
       cat > /tmp/frpc_nro.toml << 'CFG'
 serverAddr = "frp.freefrp.net"
