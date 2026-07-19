@@ -1,0 +1,47 @@
+Bước quan trọng: Vào Settings → Apps → DragonBoy → Xóa dữ liệu (clear data) → rồi mới gỡ v1.4.0 Cài APK v1.5.0 Mở game → chọn Custom / Tùy chỉnh → nhập 127.0.0.1 : 14445 Bridge chạy ngầm, relay qua WebSocket như bình thường Cho tự động hết đi đặt luôn tôi đỡ phải nhập????
+
+Cần hiểu chính xác cơ chế server load để patch đúng chỗ. Đọc các file quan trọng song song:
+
+Decode ipString ngay và tìm DecodeToString để biết URL thật trong APK:
+
+Có đủ thông tin. XOR key = "69", ipString decode ra "Blue 1:14.225.203.242:3736:0,Blue 2:...,Blue 3:...,Blue TEST:...,0,0" — 4 server, nên game hiện màn chọn server. Giải pháp: encode "LocalHost:127.0.0.1:14445:0,0,0" với cùng XOR key → replace ipString trong global-metadata.dat → còn 1 server → game tự chọn, không cần nhập tay.
+
+Commit và build v1.6.0:
+
+Server strings không có trong global-metadata.dat. Có thể game dùng Mono thay vì IL2CPP — code nằm trong Assembly-CSharp.dll. Cần kiểm tra:
+
+Lý do không tìm thấy: game có thể dùng Mono thay IL2CPP — string nằm trong Assembly-CSharp.dll dưới dạng UTF-16LE, không phải global-metadata.dat. Cần thêm DLL patching. Làm hết trong một lần:
+
+Server string không có trong global-metadata.dat ở dạng plaintext. Thêm diagnostic step để tìm xem game lưu preferences ở đâu (smali level), song song với đọc BridgeProvider hiện tại:
+
+Tìm thấy rồi! Rms.cs dùng PlayerPrefs! Đọc Rms.cs để biết chính xác cách lưu:
+
+Eureka! Rms.cs dùng Application.persistentDataPath + files (không phải PlayerPrefs). Format saveRMSString = DataOutputStream.writeUTF() → 2-byte big-endian length + UTF-8 bytes. saveRMSInt = 1 byte.
+
+Giải pháp chắc chắn: tạo BridgePreference.java ghi trực tiếp file NRlink2 và svselect vào context.getFilesDir() TRƯỚC khi game đọc:
+
+Cập nhật BridgeProvider.smali và workflow song song:
+
+Cập nhật workflow compile cả BridgePreference.java + build v1.8.0:
+
+Build v1.8.0 xong ✅. Cập nhật memory trước khi báo cáo:
+
+v1.8.0 done ✅ — https://github.com/akah3674-glitch/rem5/releases/tag/v1.8.0
+
+Cách hoạt động của auto-connect:
+
+Tìm ra Rms.cs lưu data vào file thật tại /data/data/<pkg>/files/ (không phải PlayerPrefs). Nên ta inject code Java chạy trước Unity:
+
+BridgePreference.applyServerPreset() ghi file NRlink2 = danh sách 1 server duy nhất (LocalHost:127.0.0.1:14445) đúng format mà game đọc
+Ghi file svselect = 0 (chọn server đầu tiên)
+ServerListScreen.cs logic: nếu nameServer.Length == 1 → tự chọn, không hiện màn hình chọn server
+Cài v1.8.0:
+
+Gỡ v1.4.0 (nếu có) — Xóa dữ liệu trước khi gỡ
+Tải và cài NROGame-bridge.apk
+Mở game → không cần làm gì thêm, tự kết nối luôn
+Kiểm tra chưa tôi vào mà bị lỗi tôi giết cậu
+
+Cho tôi xem log ngay:
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
