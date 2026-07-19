@@ -2200,7 +2200,7 @@ start_server() {
         -o /tmp/frp.tar.gz && tar xzf /tmp/frp.tar.gz -C /tmp/frp --strip-components=1
       chmod +x /tmp/frp/frpc
     fi
-    # Tạo lại config nếu mất — frpc chỉ dùng cho register port 8090
+    # Tạo lại frpc config nếu mất
     if [ ! -f "/tmp/frpc_nro.toml" ]; then
       cat > /tmp/frpc_nro.toml << 'CFG'
 serverAddr = "frp.freefrp.net"
@@ -2214,13 +2214,6 @@ type = "tcp"
 localIP = "127.0.0.1"
 localPort = 14445
 remotePort = 21445
-
-[[proxies]]
-name = "nro-register"
-type = "tcp"
-localIP = "127.0.0.1"
-localPort = 8090
-remotePort = 28090
 CFG
     fi
     nohup /tmp/frp/frpc -c /tmp/frpc_nro.toml >> ~/logs/frp.log 2>&1 &
