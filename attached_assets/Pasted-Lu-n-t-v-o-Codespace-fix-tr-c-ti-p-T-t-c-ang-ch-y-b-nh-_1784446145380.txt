@@ -1,0 +1,56 @@
+Luôn tự vào Codespace để fix trực tiếp
+
+Tất cả đang chạy bình thường rồi ✅
+
+Java: ✅  port 14445
+Bridge: ✅  port 8080 (public)
+DB: ✅
+Đã lưu yêu cầu vào memory — từ giờ mỗi khi server có vấn đề tôi sẽ tự SSH vào Codespace fix trực tiếp mà không hỏi lại.
+
+Thử kết nối game lại ngay nhé — nhập 127.0.0.1 : 14445.
+
+Đã xong. Server đang chạy ổn, port public, memory đã cập nhật quy tắc mới. Thử vào game lại nhé.
+
+Server không chạy
+
+Services đều chạy bình thường. Vấn đề có thể là port 8080 bị private. Fix ngay:
+
+Server đang chạy bình thường bên trong Codespace (Java ✅ Bridge ✅ DB ✅, HTTP 426 = WS bridge sẵn sàng). Kiểm tra từ bên ngoài xem có reach được không:
+
+WSS từ bên ngoài cũng trả về HTTP 426 ✅ — nghĩa là bridge public và hoạt động tốt hoàn toàn.
+
+Server không có vấn đề gì. Bạn thấy gì trong game khi nói "không chạy"?
+
+Đèn đỏ (chập chờn)?
+Không vào được màn hình chọn server?
+Báo lỗi gì cụ thể?
+Thấy vấn đề rồi — bạn đang dùng APK v2.4.0 DragonBoy, không phải APK bridge NROGame-bridge.apk v1.9.0 của chúng ta. APK này không có bridge WSS nên không kết nối được vào Codespace.
+
+Có 2 cách:
+
+Cách 1 (dễ nhất): Bấm vào "Máy chủ: DragonBoy" → nhập IP 127.0.0.1 Port 14445 → OK. Nhưng APK này dùng TCP thẳng nên sẽ không qua được WSS bridge.
+
+Cách 2 (đúng): Dùng APK bridge của chúng ta — tải lại từ GitHub:
+
+https://github.com/akah3674-glitch/rem5/releases/download/v1.9.0/NROGame-bridge.apk
+Cài đè lên APK hiện tại → mở game → bấm "Máy chủ" → nhập 127.0.0.1 : 14445.
+
+Bạn đang dùng APK nào — tự cài hay tải từ link release của chúng ta?
+
+Tôi tải đúng 100% từ githib bạn kiểm tra github file apk đấy đi
+
+APK đúng nhưng game vẫn dùng server "DragonBoy" gốc thay vì bridge. Kiểm tra CI log và code inject:
+
+Cần xem CI log chi tiết để biết patch_server.py có patch được DLL không:
+
+Root cause rõ rồi từ CI log:
+
+Text config patched : 0 files
+IL2CPP meta patched : 0 location(s)  
+Mono DLL patched    : 0 location(s)
+Auto-connect        : ⚠️ cần kiểm tra log
+patch_server.py không patch được gì — server string của APK DragonBoy không nằm ở vị trí script đang tìm. Cần tìm chính xác server IP trong APK này:
+
+APK này IL2CPP, không có Assembly-CSharp.dll — server string nằm trong data.unity3d (63MB asset bundle) mà script đang bỏ qua hoàn toàn. Cần tìm trực tiếp trong file đó:
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
