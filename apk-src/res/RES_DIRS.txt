@@ -1,0 +1,11 @@
+/tmp/apk_full/res
+mipmap-anydpi-v26
+mipmap-hdpi
+mipmap-ldpi
+mipmap-mdpi
+mipmap-xhdpi
+mipmap-xxhdpi
+mipmap-xxxhdpi
+values
+values-v30
+values-v31
