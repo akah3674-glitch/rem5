@@ -1,281 +1,169 @@
 #!/usr/bin/env python3
 """
-Patch NRO APK smali để:
-1. Hardcode server IP → 127.0.0.1, port → 14445 (toàn bộ assets + smali)
-2. Replace "DragonBoy" server entry trong string-array smali → 127.0.0.1
-3. Auto-connect: set selected server index = 0 (local bridge)
+NRO APK patch v1.5.0
+- CHỈ patch text config files (JSON, XML, txt...) - SKIP binary files
+- global-metadata.dat: safe in-place binary replace (giữ nguyên file size)
+- KHÔNG bao giờ open Unity binary bằng text mode (data.unity3d, .dll, .dat)
+- KHÔNG inject smali (Unity IL2CPP, logic không nằm trong Java smali)
+
+Root cause v1.4.0 crash:
+  data.unity3d + global-metadata.dat bị open text mode → regex replace ngẫu nhiên
+  → Unity engine không đọc được asset → crash loop → lag máy
 """
 import os, re, sys
 
 SMALI_DIR  = sys.argv[1] if len(sys.argv) > 1 else "/tmp/game_src/smali"
 ASSETS_DIR = sys.argv[2] if len(sys.argv) > 2 else "/tmp/game_src/assets"
 
-TARGET_HOST     = "127.0.0.1"
-TARGET_PORT     = 14445
-TARGET_PORT_STR = str(TARGET_PORT)
+TARGET_IP   = "127.0.0.1"
+TARGET_PORT = 14445
 
-# Các port NRO thường dùng cần thay thế
-OTHER_PORTS = {14449, 21445, 14446, 14447, 14448, 14450, 5798}
-OTHER_PORTS_HEX = {
-    14449: "0x3871", 21445: "0x53c5", 14446: "0x386e",
-    14447: "0x386f", 14448: "0x3870", 14450: "0x3872",
-    5798:  "0x16a6",
-}
+# Chỉ patch đúng các extension text thuần
+TEXT_EXTS = {'.json', '.txt', '.xml', '.properties', '.cfg', '.ini',
+             '.yaml', '.yml', '.conf', '.csv', '.plist', '.proto'}
 
-changed = []
+# Các IP server cũ cần replace trong global-metadata.dat (binary in-place)
+# Thứ tự: dài trước ngắn sau để tránh partial match
+KNOWN_SERVER_IPS = [
+    b"147.185.221.211",   # playit.gg NRO
+    b"23.95.31.196",      # bore.pub cũ
+    b"14.225.213.148",    # Hà Nội server
+    b"fw.patus.tech",     # patus server domain
+    b"nrolight.net",      # nrolight domain
+]
+
+# Các port cần replace trong text files
+OTHER_PORTS_INT = [14449, 21445, 14446, 14447, 14448, 14450, 5798]
+
+changed_text = []
+changed_meta = 0
+
+
+def is_binary(path):
+    """True nếu file chứa null bytes → binary, không được text-patch."""
+    try:
+        with open(path, 'rb') as f:
+            return b'\x00' in f.read(4096)
+    except Exception:
+        return True
+
 
 # ─────────────────────────────────────────────────────────────────
-# 1. Patch assets (JSON / text / properties config files)
+# 1. Patch text config files trong assets — SKIP binary hoàn toàn
 # ─────────────────────────────────────────────────────────────────
 if os.path.exists(ASSETS_DIR):
     for root, _, files in os.walk(ASSETS_DIR):
         for fname in files:
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in TEXT_EXTS:
+                continue          # bỏ qua mọi file không phải text config
             fp = os.path.join(root, fname)
+            if is_binary(fp):
+                continue          # double-check: bỏ qua binary
             try:
-                with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
+                with open(fp, 'r', encoding='utf-8') as fh:
                     text = fh.read()
-            except Exception:
-                continue
+            except UnicodeDecodeError:
+                continue          # không phải UTF-8 → skip
             orig = text
-            # Replace IPv4 addresses (server IPs)
+            # Thay IP server (giữ nguyên 127.0.0.1)
             text = re.sub(
-                r'(?<!["\w])(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?!["\w])',
-                TARGET_HOST, text)
-            # Replace common server domains
-            text = re.sub(
-                r'fw\.patus\.tech|nrolight\.net|nro\d*\.\w+\.\w+|DragonBoy\d*\.\w+',
-                TARGET_HOST, text)
-            # Replace ports in strings/JSON
-            for p in OTHER_PORTS:
+                r'\b(?!127\.0\.0\.1\b)(?:\d{1,3}\.){3}\d{1,3}\b',
+                TARGET_IP, text)
+            # Thay port
+            for p in OTHER_PORTS_INT:
                 text = text.replace(f':{p}', f':{TARGET_PORT}')
                 text = text.replace(f'"{p}"', f'"{TARGET_PORT}"')
-                text = text.replace(f"'{p}'", f"'{TARGET_PORT}'")
-                text = text.replace(f' {p}\n', f' {TARGET_PORT}\n')
             if text != orig:
-                with open(fp, "w", encoding="utf-8") as fh:
+                with open(fp, 'w', encoding='utf-8') as fh:
                     fh.write(text)
-                changed.append(("assets", fp))
-                print(f"  [assets] {os.path.relpath(fp, ASSETS_DIR)}")
+                changed_text.append(os.path.relpath(fp, ASSETS_DIR))
+                print(f"  [text] {changed_text[-1]}")
 
 # ─────────────────────────────────────────────────────────────────
-# 2. Scan smali — collect info, then patch
+# 2. global-metadata.dat: safe BINARY in-place patch
+#    Mở bằng rb/wb — giữ nguyên file size — replace bytes trực tiếp
 # ─────────────────────────────────────────────────────────────────
-RE_IP_CONST    = re.compile(r'(const-string\s+\w+,\s+")((?!127\.0\.0\.1)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(")')
-RE_DOMAIN_CONST = re.compile(r'(const-string\s+\w+,\s+")(fw\.patus\.tech|nrolight\.net|[\w\-]+\.app\.github\.dev)(?!/ws)(")')
-RE_PORT_DEC    = re.compile(r'(\bconst(?:/4|/16|/high|)?\s+\w+,\s+)(\d{5})\b')
+meta_path = None
+for root, _, files in os.walk(ASSETS_DIR):
+    for f in files:
+        if f == 'global-metadata.dat':
+            meta_path = os.path.join(root, f)
+            break
+    if meta_path:
+        break
 
-# Smali files có server-selection logic
-server_select_files = []
-socket_files        = []
+if meta_path:
+    with open(meta_path, 'rb') as f:
+        data = bytearray(f.read())
 
-for root, _, files in os.walk(SMALI_DIR):
-    for fname in files:
-        if not fname.endswith(".smali"):
-            continue
-        fp = os.path.join(root, fname)
-        with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
-            content = fh.read()
+    orig_size = len(data)
+    TARGET_B  = TARGET_IP.encode('ascii')
 
-        if re.search(r'DragonBoy|ServerList|serverList|chon.*sv|selectServer|server.*list',
-                     content, re.IGNORECASE):
-            server_select_files.append(fp)
+    print(f"\n[meta] Scanning {os.path.basename(meta_path)} ({orig_size:,} bytes)...")
 
-        if any(kw in content for kw in [
-            "Ljava/net/Socket;", "SSLSocket", "InetSocketAddress",
-            "openConnection", "HttpURLConnection"
-        ]):
-            socket_files.append(fp)
+    # --- Debug: in các server URL/IP tìm thấy ---
+    url_re = re.compile(rb'https?://[a-zA-Z0-9._/:%?&=\-]{8,200}')
+    for m in url_re.finditer(bytes(data)):
+        url = m.group().decode('ascii', errors='replace')
+        if any(k in url.lower() for k in ['nro', 'server', 'patus', 'nrolight', 'dragonboy', 'game']):
+            print(f"  [URL found] offset={m.start()}: {url[:120]}")
 
-print(f"\nServer-select smali ({len(server_select_files)}):")
-for f in server_select_files:
-    print(f"  {os.path.relpath(f, SMALI_DIR)}")
+    for kw in KNOWN_SERVER_IPS:
+        pos = bytes(data).find(kw)
+        if pos != -1:
+            ctx = bytes(data[max(0, pos-20):pos+len(kw)+20])
+            ctx_str = ''.join(chr(b) if 32 <= b < 127 else '.' for b in ctx)
+            print(f"  [IP found] '{kw.decode()}' at offset={pos}  ctx='{ctx_str}'")
 
-print(f"\nSocket/network smali ({len(socket_files)}):")
-for f in socket_files[:20]:
-    print(f"  {os.path.relpath(f, SMALI_DIR)}")
-
-# ─── Patch all smali ─────────────────────────────────────────────
-for root, _, files in os.walk(SMALI_DIR):
-    for fname in files:
-        if not fname.endswith(".smali"):
-            continue
-        fp = os.path.join(root, fname)
-        with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
-            content = fh.read()
-        orig = content
-
-        has_net = fp in socket_files
-        has_ip  = RE_IP_CONST.search(content) is not None
-        has_dom = RE_DOMAIN_CONST.search(content) is not None
-
-        if has_net or has_ip or has_dom or fp in server_select_files:
-            # Patch IPv4 literals → 127.0.0.1
-            content = RE_IP_CONST.sub(
-                lambda m: m.group(1) + TARGET_HOST + m.group(3), content)
-            # Patch domain literals → 127.0.0.1
-            content = RE_DOMAIN_CONST.sub(
-                lambda m: m.group(1) + TARGET_HOST + m.group(3), content)
-            # Patch port hex literals
-            for old_port, old_hex in OTHER_PORTS_HEX.items():
-                content = content.replace(old_hex, hex(TARGET_PORT))
-            # Patch decimal port constants (5-digit game ports)
-            def patch_dec_port(m):
-                val = int(m.group(2))
-                if val in OTHER_PORTS:
-                    return m.group(1) + TARGET_PORT_STR
-                return m.group(0)
-            content = RE_PORT_DEC.sub(patch_dec_port, content)
-
-        if content != orig:
-            with open(fp, "w", encoding="utf-8") as fh:
-                fh.write(content)
-            changed.append(("smali", fp))
-            print(f"  [smali] {os.path.relpath(fp, SMALI_DIR)}")
-
-# ─────────────────────────────────────────────────────────────────
-# 3. Patch "DragonBoy" server name string → "Local Bridge"
-#    và replace server IP string trong cùng file
-# ─────────────────────────────────────────────────────────────────
-DRAGONBOY_DONE = 0
-for fp in server_select_files:
-    with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
-        content = fh.read()
-    orig = content
-
-    # Replace DragonBoy tên server → "Local Bridge"
-    content = re.sub(
-        r'(const-string\s+\w+,\s+")DragonBoy(\d*)(.*?)(")',
-        r'\g<1>Local Bridge\3\4',
-        content
-    )
-    # Replace DragonBoy trong mảng string const
-    content = content.replace('"DragonBoy"', '"Local Bridge"')
-    content = content.replace('"DragonBoy11"', '"Local Bridge"')
-    content = content.replace('"DragonBoy 11"', '"Local Bridge"')
-
-    if content != orig:
-        with open(fp, "w", encoding="utf-8") as fh:
-            fh.write(content)
-        DRAGONBOY_DONE += 1
-        changed.append(("dragonboy", fp))
-        print(f"  [dragonboy→local] {os.path.relpath(fp, SMALI_DIR)}")
-
-# ─────────────────────────────────────────────────────────────────
-# 4. Auto-connect patch — tìm server-select Activity và inject
-#    Chiến lược: tìm method onClick/onItemClick/selectServer,
-#    thêm auto-call trong onCreate để tự kết nối server đầu tiên
-# ─────────────────────────────────────────────────────────────────
-AUTO_CONNECT_DONE = False
-
-for fp in server_select_files:
-    with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
-        content = fh.read()
-    orig = content
-
-    # Lấy tên class
-    class_match = re.search(r'\.class.*?public.*?L([^;]+);', content)
-    if not class_match:
-        continue
-    cls_path = class_match.group(1)  # vd: com/game/SelectServerActivity
-
-    # Tìm tên method kết nối (onClick, onItemClick, connectServer, ...)
-    connect_methods = re.findall(
-        r'\.method\s+(?:public|private|protected)[^\n]*?\s+'
-        r'((?:on(?:Item)?Click|connect\w*|selectServer\w*|loginServer\w*|startGame\w*|chonSv\w*))'
-        r'\s*\(',
-        content, re.IGNORECASE
-    )
-
-    # Tìm onCreate
-    oncreate_match = re.search(
-        r'(\.method public onCreate\(Landroid/os/Bundle;\)V\n)(.*?)(\.end method)',
-        content, re.DOTALL
-    )
-
-    if oncreate_match and connect_methods:
-        method_name = connect_methods[0]
-        method_sig  = f"L{cls_path};"
-        before      = oncreate_match.group(1)
-        body        = oncreate_match.group(2)
-        end         = oncreate_match.group(3)
-
-        # Chỉ inject 1 lần
-        if "AUTO-CONNECT" not in body:
-            # Tìm .locals và tăng lên nếu cần (đảm bảo có v0, v1)
-            locals_match = re.search(r'(\s+\.locals\s+)(\d+)', body)
-            if locals_match:
-                n = int(locals_match.group(2))
-                if n < 2:
-                    body = body.replace(
-                        locals_match.group(0),
-                        locals_match.group(1) + "2"
-                    )
-
-            snippet = f"""
-    # [AUTO-CONNECT PATCH v1.4.0] tự động kết nối local bridge
-    const/4 v0, 0x0
-    invoke-virtual {{p0, v0}}, {method_sig}->{method_name}(I)V
-
-"""
-            # Insert trước return-void cuối
-            new_body = re.sub(
-                r'(\n    return-void\n)(?!.*\n    return-void\n)',
-                snippet + r'\1',
-                body,
-                count=1,
-                flags=re.DOTALL
-            )
-            if new_body != body:
-                content = before + new_body + end
-                AUTO_CONNECT_DONE = True
-
-    if content != orig:
-        with open(fp, "w", encoding="utf-8") as fh:
-            fh.write(content)
-        changed.append(("auto-connect", fp))
-        print(f"  [auto-connect] {os.path.relpath(fp, SMALI_DIR)}")
-
-# ─────────────────────────────────────────────────────────────────
-# 5. Fallback: nếu không inject được smali Activity,
-#    tìm và patch SharedPreferences/prefs default server index
-# ─────────────────────────────────────────────────────────────────
-PREFS_DONE = 0
-if not AUTO_CONNECT_DONE:
-    # Tìm file smali lưu default server index (putInt "server_index" hay tương tự)
-    for root, _, files in os.walk(SMALI_DIR):
-        for fname in files:
-            if not fname.endswith(".smali"):
+    # --- In-place binary replacement ---
+    for search_b in KNOWN_SERVER_IPS:
+        start = 0
+        while True:
+            idx = bytes(data).find(search_b, start)
+            if idx == -1:
+                break
+            old_len = len(search_b)
+            new_len = len(TARGET_B)
+            if new_len > old_len:
+                print(f"  [SKIP] '{search_b.decode()}': replacement longer, skipping")
+                start = idx + 1
                 continue
-            fp = os.path.join(root, fname)
-            with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
-                content = fh.read()
-            orig = content
+            # Đặt bytes mới vào đúng vị trí, null-pad phần dôi dư
+            replacement = TARGET_B + b'\x00' * (old_len - new_len)
+            for i, byte in enumerate(replacement):
+                data[idx + i] = byte
+            print(f"  [meta-patch] '{search_b.decode()}' → '{TARGET_B.decode()}'"
+                  f" (pad={old_len - new_len} nulls) at offset={idx}")
+            changed_meta += 1
+            start = idx + 1  # tìm tiếp occurrence khác
 
-            # Tìm pattern: putInt/putString "server_index" hoặc "selected_server"
-            if re.search(r'"(?:server_index|selected_server|sv_index|serverIndex|current_server)"',
-                         content, re.IGNORECASE):
-                # Replace default value từ bất kỳ non-zero → 0
-                # Pattern: const/4 vX, 0xN (N > 0) → 0x0
-                content = re.sub(
-                    r'(const/4\s+v\d+,\s+)0x[1-9a-f](\b)',
-                    r'\g<1>0x0\2',
-                    content
-                )
-                if content != orig:
-                    with open(fp, "w", encoding="utf-8") as fh:
-                        fh.write(content)
-                    PREFS_DONE += 1
-                    changed.append(("prefs-default", fp))
-                    print(f"  [prefs-default-server] {os.path.relpath(fp, SMALI_DIR)}")
+    assert len(data) == orig_size, "BUG: file size thay đổi sau patch!"
+
+    if changed_meta > 0:
+        with open(meta_path, 'wb') as f:
+            f.write(bytes(data))
+        print(f"  [meta] Saved — {changed_meta} occurrence(s) patched, size unchanged")
+    else:
+        print(f"  [meta] No known server IPs found (may already be 127.0.0.1 or obfuscated)")
+
+else:
+    print("[meta] global-metadata.dat not found in assets — skip")
+
+# ─────────────────────────────────────────────────────────────────
+# 3. Smali: KHÔNG patch gì cả
+#    Game là Unity IL2CPP — toàn bộ logic trong C# compiled → meta
+#    Các smali file là Unity wrapper Java (không có TCP socket)
+# ─────────────────────────────────────────────────────────────────
+print(f"\n[smali] Skip — Unity IL2CPP game, logic không nằm trong Java smali")
 
 # ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
 print(f"\n{'='*55}")
-print(f"TỔNG: {len(changed)} files đã patch")
-print(f"DragonBoy → Local Bridge: {'✅ ' + str(DRAGONBOY_DONE) + ' files' if DRAGONBOY_DONE else '⚠️ Không tìm thấy'}")
-print(f"Auto-connect smali inject: {'✅ OK' if AUTO_CONNECT_DONE else '⚠️ Không inject được Activity — dùng prefs fallback'}")
-print(f"Prefs default server:      {'✅ ' + str(PREFS_DONE) + ' files' if PREFS_DONE else '—'}")
-print(f"Server IP → {TARGET_HOST}")
-print(f"Port      → {TARGET_PORT}")
+print(f"Text config patched : {len(changed_text)} files")
+print(f"Meta binary patched : {changed_meta} IP occurrences")
+print(f"Binary files        : KHÔNG đụng (an toàn)")
+print(f"Target IP           : {TARGET_IP}")
+print(f"Target port         : {TARGET_PORT}")
 print(f"{'='*55}")

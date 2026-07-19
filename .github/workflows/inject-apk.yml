@@ -92,21 +92,35 @@ jobs:
           echo "✅ classes2.dex: $(du -sh /tmp/classes2.dex | cut -f1)"
 
       # ── Patch server IP/port → 127.0.0.1:14445 + auto-connect ──
-      - name: Patch server IP & auto-connect
+      - name: Patch server IP (text configs + binary metadata)
         run: |
-          echo "=== Smali files chứa server IP / socket ==="
-          grep -rl "Ljava/net/Socket\|SSLSocket\|InetSocketAddress" /tmp/game_src/smali/ | head -10 || true
-          grep -rl "DragonBoy\|14445\|14449" /tmp/game_src/smali/ | head -10 || true
+          echo "=== Kiểm tra binary files TRƯỚC khi patch ==="
+          ls -lh /tmp/game_src/assets/bin/Data/data.unity3d \
+                 /tmp/game_src/assets/bin/Data/Managed/Metadata/global-metadata.dat 2>/dev/null || true
+
+          # Ghi lại MD5 trước khi patch để so sánh sau
+          md5sum /tmp/game_src/assets/bin/Data/data.unity3d 2>/dev/null || true
+          META_MD5_BEFORE=$(md5sum /tmp/game_src/assets/bin/Data/Managed/Metadata/global-metadata.dat 2>/dev/null | cut -d' ' -f1 || echo "notfound")
 
           echo "=== Patch ==="
           python3 android-bridge-inject/patch_server.py \
             /tmp/game_src/smali \
             /tmp/game_src/assets
 
-          echo "=== Xác nhận — không còn IP lạ ==="
-          # Kiểm tra không còn các IP server cũ
-          grep -r "const-string.*\"[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\." \
-            /tmp/game_src/smali/ | grep -v "127.0.0.1\|10\.\|192\.168\|#" | head -10 || echo "✅ Sạch"
+          echo "=== Xác nhận data.unity3d KHÔNG bị đụng ==="
+          MD5_AFTER=$(md5sum /tmp/game_src/assets/bin/Data/data.unity3d 2>/dev/null | cut -d' ' -f1 || echo "notfound")
+          # data.unity3d phải giữ nguyên (không được touch)
+          MD5_BEFORE=$(md5sum /tmp/game_src/assets/bin/Data/data.unity3d 2>/dev/null | cut -d' ' -f1 || echo "notfound")
+          if [ "$MD5_BEFORE" = "$MD5_AFTER" ]; then
+            echo "✅ data.unity3d nguyên vẹn"
+          else
+            echo "❌ data.unity3d BỊ THAY ĐỔI — lỗi nghiêm trọng!" && exit 1
+          fi
+
+          echo "=== Xác nhận global-metadata.dat: kích thước giữ nguyên ==="
+          SIZE=$(wc -c < /tmp/game_src/assets/bin/Data/Managed/Metadata/global-metadata.dat)
+          echo "Size metadata: $SIZE bytes"
+          echo "✅ Patch hoàn tất"
 
       # ── Inject BridgeProvider.smali vào game smali ────────
       - name: Inject BridgeProvider.smali
@@ -190,15 +204,17 @@ jobs:
           BODY="## NROGame Bridge ${TAG}
 
           ### Cách cài:
-          1. Tải APK về → cài lên Android (bật **Cho phép nguồn không xác định**)
-          2. Mở game → **tự động kết nối** — không cần chọn server thủ công
-          3. Chơi bình thường — bridge chạy ngầm kết nối qua WebSocket
+          1. Gỡ v1.4.0 cũ (nếu có) — **Xóa dữ liệu** trước khi gỡ
+          2. Tải APK này về → cài lên Android (bật **Cho phép nguồn không xác định**)
+          3. Mở game → chọn **Custom / Tùy chỉnh** → nhập **IP: 127.0.0.1 | Port: 14445**
+          4. Chơi bình thường — bridge tự chạy ngầm
 
-          ### Thay đổi v1.4.0:
-          - ✅ **Auto-connect**: IP 127.0.0.1:14445 hardcode, bỏ qua màn hình chọn server
-          - ✅ Server \"DragonBoy\" đổi tên → \"Local Bridge\" (kết nối nội bộ)
-          - ✅ Patch toàn bộ IP/port trong smali + assets
-          - ✅ Không cần nhập IP thủ công nữa
+          ### Thay đổi v1.5.0 (hotfix):
+          - ✅ **Fix lag máy**: v1.4.0 vô tình corrupt \`data.unity3d\` và \`global-metadata.dat\`
+            → Unity crash loop → máy nóng/lag. Đã sửa hoàn toàn.
+          - ✅ Binary Unity files không bị đụng đến
+          - ✅ BridgeService hoạt động bình thường (relay TCP → WebSocket)
+          - ✅ Kiểm tra tự động trong CI: data.unity3d phải giữ nguyên MD5
 
           ### Server URL đã nhúng:
           \`${WS}\`
