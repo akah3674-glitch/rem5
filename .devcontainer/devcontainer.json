@@ -1,16 +1,28 @@
 {
-  "name": "NRO Game Server",
+  "name": "NRO Game Server (WebSocket)",
   "postStartCommand": "bash /workspaces/${localWorkspaceFolderBasename}/scripts/codespace_autostart.sh",
-  "forwardPorts": [8080, 14445],
+  "forwardPorts": [
+    8080,
+    14445
+  ],
   "portsAttributes": {
     "8080": {
-      "label": "WS Bridge",
+      "label": "WS Bridge (Public)",
       "onAutoForward": "silent",
       "visibility": "public"
     },
     "14445": {
-      "label": "Game Server",
-      "onAutoForward": "silent"
+      "label": "Game Server (Internal)",
+      "onAutoForward": "silent",
+      "visibility": "private"
+    }
+  },
+  "secrets": {
+    "REPLIT_API_URL": {
+      "description": "URL Replit API server (https://xxx.replit.dev)"
+    },
+    "SESSION_SECRET": {
+      "description": "Secret key de update WS URL tren Replit"
     }
   }
 }
